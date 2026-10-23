@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example, 0.0.4)
-        required: true
+        description: Optional release version (for example, 1.2.3). Leave blank to bump automatically.
+        required: false
         type: string
 
 permissions:
@@ -26,21 +26,61 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
 
-      - name: Validate release version
+      - name: Calculate release version
+        id: version
         env:
-          VERSION: ${{ inputs.version }}
           REF: ${{ github.ref }}
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           if [[ "$REF" != "refs/heads/main" ]]; then
             echo "Run releases from the main branch." >&2
             exit 1
           fi
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Version must use MAJOR.MINOR.PATCH format (for example, 0.0.4)." >&2
-            exit 1
-          fi
+
+          VERSION_DATA="$(python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          contents = Path("Trop.xcodeproj/project.pbxproj").read_text()
+          versions = re.findall(
+              r"MARKETING_VERSION = ([0-9]+\.[0-9]+\.[0-9]+);",
+              contents,
+          )
+          if len(versions) != 2 or versions[0] != versions[1]:
+              raise SystemExit(
+                  "Expected matching MARKETING_VERSION values for Debug and Release."
+              )
+
+          requested = os.environ["REQUESTED_VERSION"].strip()
+          if requested:
+              if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", requested):
+                  raise SystemExit(
+                      "Release version must use MAJOR.MINOR.PATCH format (for example, 1.2.3)."
+                  )
+              version = requested
+          else:
+              parts = [int(part) for part in versions[0].split(".")]
+              parts[2] += 1
+              if parts[2] == 10:
+                  parts[2] = 0
+                  parts[1] += 1
+              if parts[1] == 10:
+                  parts[1] = 0
+                  parts[0] += 1
+              version = ".".join(map(str, parts))
+
+          print(versions[0])
+          print(version)
+          PY
+          )"
+          OLD_VERSION="${VERSION_DATA%%$'\n'*}"
+          VERSION="${VERSION_DATA#*$'\n'}"
+          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
             echo "Release v${VERSION} already exists." >&2
             exit 1
@@ -75,12 +115,45 @@ jobs:
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
           CURRENT_PROJECT_VERSION: ${{ github.run_number }}
-          MARKETING_VERSION: ${{ inputs.version }}
+          MARKETING_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Commit release version to project
+        env:
+          OLD_VERSION: ${{ steps.version.outputs.old_version }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("Trop.xcodeproj/project.pbxproj")
+          contents = path.read_text()
+          old = f"MARKETING_VERSION = {os.environ['OLD_VERSION']};"
+          new = f"MARKETING_VERSION = {os.environ['VERSION']};"
+          updated, count = re.subn(re.escape(old), new, contents)
+          if count != 2:
+              raise SystemExit(
+                  f"Expected exactly two old MARKETING_VERSION settings, found {count}."
+              )
+          path.write_text(updated)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Trop.xcodeproj/project.pbxproj
+          if git diff --cached --quiet; then
+            echo "Project version already matches v${VERSION}"
+            exit 0
+          fi
+          git commit -m "chore(release): set version to v${VERSION} [skip ci]"
+          git push origin HEAD:main
 
       - name: Generate release notes from changes
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -105,7 +178,7 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           gh release create "v${VERSION}" build/Trop.ipa \
@@ -115,7 +188,7 @@ jobs:
       - name: Update AltStore source
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
@@ -149,7 +222,7 @@ jobs:
 
       - name: Commit AltStore source
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

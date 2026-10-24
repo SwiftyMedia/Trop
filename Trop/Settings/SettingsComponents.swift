@@ -23,7 +23,7 @@ struct SettingsNavigationRow<Destination: View>: View {
         NavigationLink {
             destination()
         } label: {
-            Label(title, systemImage: icon)
+            Label(LocalizedStringKey(title), systemImage: icon)
         }
         .tint(settings.accentColor)
     }
@@ -44,9 +44,9 @@ struct SettingsToggleRow: View {
     var body: some View {
         Toggle(isOn: $isOn) {
             if let icon {
-                Label(title, systemImage: icon)
+                Label(LocalizedStringKey(title), systemImage: icon)
             } else {
-                Text(title)
+                Text(LocalizedStringKey(title))
             }
         }
         .tint(settings.accentColor)
@@ -68,13 +68,13 @@ struct SettingsPickerRow<T: SettingsOption>: View {
     var body: some View {
         Picker(selection: $selection) {
             ForEach(Array(T.allCases)) { option in
-                Text(option.displayName).tag(option)
+                Text(LocalizedStringKey(option.displayName)).tag(option)
             }
         } label: {
             if let icon {
-                Label(title, systemImage: icon)
+                Label(LocalizedStringKey(title), systemImage: icon)
             } else {
-                Text(title)
+                Text(LocalizedStringKey(title))
             }
         }
         .id(settings.accentName)
@@ -107,9 +107,15 @@ struct SettingsStepperRow: View {
     var body: some View {
         Stepper {
             if let icon {
-                Label("\(title): \(format(value))", systemImage: icon)
+                Label(LocalizedStringKey(title), systemImage: icon)
+                    .overlay(alignment: .trailing) {
+                        Text(": \(format(value))")
+                    }
             } else {
-                Text("\(title): \(format(value))")
+                HStack(spacing: 0) {
+                    Text(LocalizedStringKey(title))
+                    Text(": \(format(value))")
+                }
             }
         } onIncrement: {
             value = min(value + step, range.upperBound)
@@ -132,7 +138,7 @@ struct SettingsLinkRow: View {
 
     var body: some View {
         Link(destination: url) {
-            Label(title, systemImage: icon)
+            Label(LocalizedStringKey(title), systemImage: icon)
                 .fontWeight(.semibold)
                 .foregroundStyle(.tint)
         }

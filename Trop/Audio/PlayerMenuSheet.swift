@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 /// library/download/details rows.
 struct PlayerMenuSheet: View {
@@ -58,7 +59,7 @@ struct PlayerMenuSheet: View {
                         MenuRowLabel(
                             icon: "dot.radiowaves.left.and.right",
                             title: "Similar to this song",
-                            subtitle: "More like “\(song.title)”"
+                            subtitle: String(format: NSLocalizedString("More like “%@”", comment: "Similar songs subtitle"), song.title)
                         )
                     }
                     .buttonStyle(.plain)
@@ -185,7 +186,7 @@ struct PlayerMenuSheet: View {
                 Image(systemName: icon)
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(settings.accentColor)
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(.caption)
                     .foregroundStyle(.primary)
             }
@@ -513,7 +514,7 @@ struct SongDetailsView: View {
 
     private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 16)
@@ -530,7 +531,7 @@ struct SongDetailsView: View {
 
     private func row(_ label: String, _ value: String, monospaced: Bool = false) -> some View {
         HStack(alignment: .top) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 16)

@@ -15,3 +15,4 @@ Trop.xcodeproj/xcshareddata/xcschemes/Trop.xcscheme
 # Other
 .DS_Store
 /build
+__pycache__/

@@ -85,11 +85,11 @@ struct MenuRowLabel: View {
                 .foregroundStyle(destructive ? Color.red : settings.accentColor)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.body)
                     .foregroundStyle(destructive ? Color.red : Color.primary)
                 if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
+                    Text(LocalizedStringKey(subtitle))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

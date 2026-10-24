@@ -684,7 +684,7 @@ struct AddSongToPlaylistView: View {
         NavigationStack {
             Group {
                 if isLoading {
-                    ProgressView("Loading songs...")
+                    ProgressView(LocalizedStringKey("Loading songs..."))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if songs.isEmpty {
                     ContentUnavailableView(

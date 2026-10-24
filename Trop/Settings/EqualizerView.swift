@@ -35,7 +35,7 @@ struct EqualizerView: View {
         @Bindable var settings = settings
         return VStack(spacing: 12) {
             HStack {
-                Text(settings.equalizerEnabled ? "Equalizer On" : "Equalizer Off")
+                Text(LocalizedStringKey(settings.equalizerEnabled ? "Equalizer On" : "Equalizer Off"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Toggle("", isOn: $settings.equalizerEnabled)
@@ -83,7 +83,7 @@ struct EqualizerView: View {
                         settings.equalizerPresetID = preset.id
                         PlayerController.shared.applyPlaybackSettings()
                     } label: {
-                        Text(preset.name)
+                        Text(LocalizedStringKey(preset.name))
                             .font(.subheadline.weight(isSelected ? .semibold : .regular))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)

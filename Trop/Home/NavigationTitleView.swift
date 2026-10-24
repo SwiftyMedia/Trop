@@ -26,11 +26,11 @@ struct NavigationTitleView: View {
 
                     VStack(alignment: .leading, spacing: 1) {
                         if let label {
-                            Text(label)
+                            Text(LocalizedStringKey(label))
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
-                        Text(title)
+                        Text(LocalizedStringKey(title))
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundColor(.primary)

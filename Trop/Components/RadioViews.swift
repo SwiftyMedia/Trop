@@ -20,11 +20,11 @@ struct RadioOptionsSheet: View {
                 Section {
                     Picker("Style", selection: $options.style) {
                         ForEach(RadioStyle.allCases) { style in
-                            Text(style.displayName).tag(style)
+                            Text(LocalizedStringKey(style.displayName)).tag(style)
                         }
                     }
                     .pickerStyle(.segmented)
-                    Text(options.style.description)
+                    Text(LocalizedStringKey(options.style.description))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
@@ -34,7 +34,7 @@ struct RadioOptionsSheet: View {
                 Section {
                     Stepper(value: $options.limit, in: 5...50, step: 5) {
                         HStack {
-                            Text("Tracks")
+                            Text(LocalizedStringKey("Tracks"))
                             Spacer()
                             Text("\(options.limit)")
                                 .foregroundStyle(.secondary)
@@ -54,7 +54,7 @@ struct RadioOptionsSheet: View {
                             if isStarting {
                                 ProgressView()
                             } else {
-                                Text("Start Radio")
+                                Text(LocalizedStringKey("Start Radio"))
                                     .fontWeight(.semibold)
                             }
                             Spacer()
@@ -97,7 +97,7 @@ struct SimilarSongsView: View {
             if isLoading {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("Finding similar tracks…")
+                                Text(LocalizedStringKey("Finding similar tracks…"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -106,7 +106,7 @@ struct SimilarSongsView: View {
                 ContentUnavailableView(
                     "No similar tracks",
                     systemImage: "dot.radiowaves.left.and.right",
-                    description: Text("Try again later.")
+                    description: Text(LocalizedStringKey("Try again later."))
                 )
             } else {
                 List {
@@ -128,7 +128,9 @@ struct SimilarSongsView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("Similar to \(song.title)")
+        .navigationTitle(
+            String(format: NSLocalizedString("Similar to %@", comment: "Similar song page title"), song.title)
+        )
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }

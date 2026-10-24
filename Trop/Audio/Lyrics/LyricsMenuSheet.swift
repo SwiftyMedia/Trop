@@ -109,7 +109,7 @@ struct LyricsMenuSheet: View {
                 Image(systemName: icon)
                     .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(settings.accentColor)
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(.caption)
                     .foregroundStyle(.primary)
             }

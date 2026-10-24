@@ -170,7 +170,7 @@ struct ExploreSectionsList: View {
             ) {
                 ForEach(section.moods) { mood in
                     NavigationLink(value: mood) {
-                        Text(mood.title)
+                        Text(LocalizedStringKey(mood.title))
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundStyle(.primary)

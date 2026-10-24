@@ -288,7 +288,7 @@ struct LibraryView: View {
 
     private func sectionTitle(_ title: String, count: Int? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.title3)
                 .fontWeight(.bold)
             Spacer()
@@ -318,11 +318,11 @@ struct LibraryView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
 
-            Text(info.title)
+            Text(LocalizedStringKey(info.title))
                 .lineLimit(1)
                 .font(.callout)
             if let subtitle = info.subtitle {
-                Text(subtitle)
+                Text(LocalizedStringKey(subtitle))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

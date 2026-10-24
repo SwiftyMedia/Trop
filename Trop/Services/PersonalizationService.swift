@@ -163,7 +163,11 @@ actor PersonalizationService {
             guard sections.count < 3 else { break }
             guard let related = try? await innerTube.browse(browseId: artist.id),
                   let items = parseRelatedItems(from: related), !items.isEmpty else { continue }
-            sections.append(.similarRecommendation(items: items, title: "Similar to \(artist.name)"))
+            let title = String(
+                format: NSLocalizedString("Similar to %@", comment: "Similar artist section title"),
+                artist.name
+            )
+            sections.append(.similarRecommendation(items: items, title: title))
         }
         return sections
     }

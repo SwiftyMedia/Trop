@@ -19,7 +19,7 @@ struct LoadingStateView: View {
         VStack(spacing: 16) {
             Spacer()
             ProgressView()
-            Text(message)
+            Text(LocalizedStringKey(message))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Spacer()
@@ -45,7 +45,7 @@ struct DetailStateContainer<Data, Content: View>: View {
                     .containerRelativeFrame(.vertical)
             } else if let error = error {
                 ContentUnavailableView(
-                    "Couldn't load \(noun)",
+                    LocalizedStringKey("Couldn't load \(noun)"),
                     systemImage: "exclamationmark.circle",
                     description: Text(error.localizedDescription)
                 )
@@ -54,9 +54,9 @@ struct DetailStateContainer<Data, Content: View>: View {
                 content(data)
             } else {
                 ContentUnavailableView(
-                    "No \(noun) data",
+                    LocalizedStringKey("No \(noun) data"),
                     systemImage: emptyIcon,
-                    description: Text("Could not parse \(noun) details")
+                    description: Text(LocalizedStringKey("Could not parse \(noun) details"))
                 )
                 .containerRelativeFrame(.vertical)
             }

@@ -25,7 +25,10 @@ struct ContentSettingsView: View {
             Section {
                 SettingsToggleRow("Show Quick Picks", icon: "sparkles", isOn: $settings.showQuickPicks)
                 Stepper(value: $settings.topListsLength, in: 4...20, step: 2) {
-                    Label("Top Lists Length: \(settings.topListsLength)", systemImage: "list.number")
+                    HStack(spacing: 0) {
+                        Label("Top Lists Length", systemImage: "list.number")
+                        Text(": \(settings.topListsLength)")
+                    }
                 }
             } header: {
                 Text("Home Feed")

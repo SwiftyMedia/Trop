@@ -12,7 +12,7 @@ struct SectionLabel: View {
     let systemImage: String
 
     var body: some View {
-        Label(title, systemImage: systemImage)
+        Label(LocalizedStringKey(title), systemImage: systemImage)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.secondary)
             .textCase(nil)

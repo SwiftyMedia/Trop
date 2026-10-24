@@ -18,7 +18,7 @@ struct TabHeaderView: View {
 
     var body: some View {
         HStack(alignment: .center) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.largeTitle)
                 .fontWeight(.bold)
             Spacer()

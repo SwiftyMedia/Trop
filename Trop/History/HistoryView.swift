@@ -149,7 +149,7 @@ struct HistoryScreenView: View {
                             .listRowSeparator(.hidden)
                     }
                 } header: {
-                    Text(section.title)
+                    Text(LocalizedStringKey(section.title))
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
@@ -259,7 +259,7 @@ struct HistoryScreenView: View {
                         .listRowSeparator(.hidden)
                     }
                 } header: {
-                    Text(section.title)
+                    Text(LocalizedStringKey(section.title))
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)

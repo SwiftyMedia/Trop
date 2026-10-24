@@ -213,7 +213,7 @@ struct SongMenuSheet: View {
                 Image(systemName: icon)
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(settings.accentColor)
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(.caption)
                     .foregroundStyle(.primary)
             }

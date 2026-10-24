@@ -24,7 +24,7 @@ struct FilterChipBar<Item, ID: Hashable>: View {
                     Button {
                         onTap(item)
                     } label: {
-                        Text(title(item))
+                        Text(LocalizedStringKey(title(item)))
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .padding(.horizontal, 16)

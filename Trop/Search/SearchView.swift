@@ -92,9 +92,9 @@ struct SearchView: View {
                     viewModel.sort = option
                 } label: {
                     if viewModel.sort == option {
-                        Label(option.title, systemImage: "checkmark")
+                        Label(LocalizedStringKey(option.title), systemImage: "checkmark")
                     } else {
-                        Text(option.title)
+                        Text(LocalizedStringKey(option.title))
                     }
                 }
             }
@@ -253,7 +253,7 @@ struct SearchView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)

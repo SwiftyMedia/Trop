@@ -544,13 +544,16 @@ struct ArtistDetailView: View {
     }
 
     private func subscriberLabel(for count: String) -> String {
-        count.localizedCaseInsensitiveContains("subscriber") ? count : "\(count) subscribers"
+        if count.localizedCaseInsensitiveContains("subscriber") {
+            return count
+        }
+        return String(format: NSLocalizedString("%@ subscribers", comment: "Artist subscribers count"), count)
     }
 
     @ViewBuilder
     private func aboutSection(description: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("About")
+            Text(LocalizedStringKey("About"))
                 .font(.title3)
                 .fontWeight(.bold)
                 .padding(.horizontal, 16)
@@ -567,7 +570,7 @@ struct ArtistDetailView: View {
     @ViewBuilder
     private func songsSection(songs: [SongItem]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Songs")
+            Text(LocalizedStringKey("Songs"))
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal, 16)
@@ -723,7 +726,7 @@ struct ArtistDetailView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal, 16)

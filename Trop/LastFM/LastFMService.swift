@@ -8,24 +8,25 @@
 import Foundation
 import CryptoKit
 
-struct LastFMSession: Codable {
+struct LastFMSession: Decodable {
     let name: String
     let key: String
-    let subscriber: Int
 }
 
-struct LastFMAuthResponse: Codable {
+struct LastFMAuthResponse: Decodable {
     let session: LastFMSession
 }
 
-struct LastFMTokenResponse: Codable {
+struct LastFMTokenResponse: Decodable {
     let token: String
 }
 
-struct LastFMErrorResponse: Codable {
+struct LastFMErrorResponse: Decodable {
     let error: Int
     let message: String
 }
+
+private struct EmptyResponse: Decodable {}
 
 enum LastFMError: Error, LocalizedError {
     case notConfigured
@@ -54,21 +55,6 @@ final class LastFMService: @unchecked Sendable {
     static let shared = LastFMService()
     private init() {}
 
-    var sessionKey: String? {
-        get { LastFMTokenStore.shared.retrieveSessionKey() }
-        set {
-            if let v = newValue, !v.isEmpty {
-                // keep username as-is
-                let username = LastFMTokenStore.shared.retrieveUsername() ?? ""
-                LastFMTokenStore.shared.store(sessionKey: v, username: username)
-            }
-        }
-    }
-
-    func configure(apiKey: String, secret: String) {
-        LastFMDefaults.configure(apiKey: apiKey, secret: secret)
-    }
-
     // MARK: - Signature
 
     private func apiSig(params: [String: String], secret: String) -> String {
@@ -89,6 +75,7 @@ final class LastFMService: @unchecked Sendable {
     }
 
     private func makeRequest(params: [String: String]) throws -> URLRequest {
+        guard LastFMDefaults.isConfigured else { throw LastFMError.notConfigured }
         guard let url = URL(string: LastFMDefaults.baseUrl) else { throw LastFMError.invalidResponse }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -163,6 +150,11 @@ final class LastFMService: @unchecked Sendable {
     // MARK: - Public API
 
     func getToken() async throws -> String {
+        Log.lastfm.info(
+            "auth.getToken configured=\(LastFMDefaults.isConfigured) "
+                + "apiKeyLength=\(LastFMDefaults.apiKey.count) "
+                + "secretPresent=\(!LastFMDefaults.secret.isEmpty)"
+        )
         let params: [String: String] = [
             "method": "auth.getToken",
             "api_key": LastFMDefaults.apiKey
@@ -180,18 +172,10 @@ final class LastFMService: @unchecked Sendable {
         return try await perform(params, decode: LastFMAuthResponse.self)
     }
 
-    func getMobileSession(username: String, password: String) async throws -> LastFMAuthResponse {
-        let params: [String: String] = [
-            "method": "auth.getMobileSession",
-            "api_key": LastFMDefaults.apiKey,
-            "username": username,
-            "password": password
-        ]
-        return try await perform(params, decode: LastFMAuthResponse.self)
-    }
-
     func updateNowPlaying(artist: String, track: String, album: String?, trackNumber: Int?, duration: Int?) async throws {
-        guard let sk = sessionKey, !sk.isEmpty else { throw LastFMError.missingSession }
+        guard let sk = LastFMTokenStore.shared.retrieveSessionKey(), !sk.isEmpty else {
+            throw LastFMError.missingSession
+        }
         var extra: [String: String] = [
             "artist": artist,
             "track": track,
@@ -205,14 +189,14 @@ final class LastFMService: @unchecked Sendable {
             "api_key": LastFMDefaults.apiKey
         ]
         for (k, v) in extra { params[k] = v }
-        // We don't need decoded response; use generic JSON
-        struct Empty: Codable {}
-        _ = try await perform(params, decode: Empty.self) as Empty
+        _ = try await perform(params, decode: EmptyResponse.self)
     }
 
     // swiftlint:disable:next function_parameter_count
     func scrobble(artist: String, track: String, timestamp: Int64, album: String?, trackNumber: Int?, duration: Int?) async throws {
-        guard let sk = sessionKey, !sk.isEmpty else { throw LastFMError.missingSession }
+        guard let sk = LastFMTokenStore.shared.retrieveSessionKey(), !sk.isEmpty else {
+            throw LastFMError.missingSession
+        }
         var params: [String: String] = [
             "method": "track.scrobble",
             "api_key": LastFMDefaults.apiKey,
@@ -224,12 +208,13 @@ final class LastFMService: @unchecked Sendable {
         if let album, !album.isEmpty { params["album[0]"] = album }
         if let n = trackNumber { params["trackNumber[0]"] = String(n) }
         if let d = duration { params["duration[0]"] = String(d) }
-        struct Empty: Codable {}
-        _ = try await perform(params, decode: Empty.self) as Empty
+        _ = try await perform(params, decode: EmptyResponse.self)
     }
 
     func setLoveStatus(artist: String, track: String, love: Bool) async throws {
-        guard let sk = sessionKey, !sk.isEmpty else { throw LastFMError.missingSession }
+        guard let sk = LastFMTokenStore.shared.retrieveSessionKey(), !sk.isEmpty else {
+            throw LastFMError.missingSession
+        }
         let method = love ? "track.love" : "track.unlove"
         let params: [String: String] = [
             "method": method,
@@ -238,29 +223,38 @@ final class LastFMService: @unchecked Sendable {
             "artist": artist,
             "track": track
         ]
-        struct Empty: Codable {}
-        _ = try await perform(params, decode: Empty.self) as Empty
+        _ = try await perform(params, decode: EmptyResponse.self)
     }
 
     // MARK: - Avatar
 
-    struct UserGetInfoResponse: Codable {
+    struct UserGetInfoResponse: Decodable {
         let user: LastFMUserDetail
     }
 
-    struct LastFMUserDetail: Codable {
-        let name: String
+    struct LastFMUserDetail: Decodable {
         let image: [LastFMImage]?
-        let url: String?
     }
 
-    struct LastFMImage: Codable {
-        let size: String
+    struct LastFMImage: Decodable {
+        let size: String?
         // swiftlint:disable:next identifier_name
-        let text: String
+        let text: String?
         enum CodingKeys: String, CodingKey {
             case size
             case text = "#text"
+        }
+
+        init(from decoder: Decoder) throws {
+            if let single = try? decoder.singleValueContainer(),
+               let value = try? single.decode(String.self) {
+                size = nil
+                text = value
+                return
+            }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            size = try container.decodeIfPresent(String.self, forKey: .size)
+            text = try container.decodeIfPresent(String.self, forKey: .text)
         }
     }
 
@@ -304,12 +298,12 @@ final class LastFMService: @unchecked Sendable {
             let images = decoded.user.image ?? []
             let preference = ["extralarge", "large", "medium", "small"]
             for pref in preference {
-                if let match = images.first(where: { $0.size == pref && !$0.text.isEmpty }) {
-                    return URL(string: match.text)
+                if let match = images.first(where: { $0.size == pref && !($0.text ?? "").isEmpty }) {
+                    if let url = Self.validAvatarURL(match.text) { return url }
                 }
             }
-            if let any = images.first(where: { !$0.text.isEmpty }) {
-                return URL(string: any.text)
+            if let any = images.first(where: { !($0.text ?? "").isEmpty }) {
+                if let url = Self.validAvatarURL(any.text) { return url }
             }
             Log.lastfm.debug("fetchAvatarURL: no image for user=\(trimmed)")
             return nil
@@ -317,5 +311,19 @@ final class LastFMService: @unchecked Sendable {
             Log.lastfm.warning("fetchAvatarURL failed: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    private static func validAvatarURL(_ raw: String?) -> URL? {
+        guard let raw else { return nil }
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        guard var components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host != nil else { return nil }
+        // Last.fm still returns http URLs in some profiles; the CDN supports
+        // HTTPS and ATS otherwise prevents the image request on iOS.
+        components.scheme = "https"
+        return components.url
     }
 }

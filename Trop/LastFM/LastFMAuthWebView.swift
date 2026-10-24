@@ -141,7 +141,6 @@ struct LastFMAuthWebView: View {
                 do {
                     let auth = try await LastFMService.shared.getSession(token: tok)
                     LastFMTokenStore.shared.store(sessionKey: auth.session.key, username: auth.session.name)
-                    LastFMService.shared.sessionKey = auth.session.key
                     await MainActor.run {
                         pollingTask?.cancel()
                         pollingTask = nil
@@ -169,7 +168,6 @@ struct LastFMAuthWebView: View {
         do {
             let auth = try await LastFMService.shared.getSession(token: tok)
             LastFMTokenStore.shared.store(sessionKey: auth.session.key, username: auth.session.name)
-            LastFMService.shared.sessionKey = auth.session.key
             await MainActor.run {
                 pollingTask?.cancel()
                 pollingTask = nil

@@ -198,14 +198,46 @@ if [ "${CLEAN_BUILD:-0}" = "1" ]; then
     XCODEBUILD_ACTION="clean build"
 fi
 
-# Inject Last.fm secrets from GH Secrets -> Info.plist
-# Trim whitespace/newlines (secrets pasted with newline cause error 6)
-# Only required for CI (GitHub Actions) builds. Local builds are exempt:
-# without LASTFM_API_KEY/LASTFM_SECRET the app just runs with Last.fm
-# features unconfigured, so skip injection entirely instead of warning.
-# If a local build DOES export the keys manually, they are still injected.
-LASTFM_API_KEY_TRIMMED="$(echo "${LASTFM_API_KEY:-}" | tr -d '\r\n' | xargs 2>/dev/null || echo "${LASTFM_API_KEY:-}")"
-LASTFM_SECRET_TRIMMED="$(echo "${LASTFM_SECRET:-}" | tr -d '\r\n' | xargs 2>/dev/null || echo "${LASTFM_SECRET:-}")"
+# Inject Last.fm secrets from the local scheme or GitHub Actions secrets.
+# Scheme variables are used for local builds; workflow environment variables
+# take precedence when the build runs in GitHub Actions.
+SCHEME_PATH="$WORKING_LOCATION/Trop.xcodeproj/xcshareddata/xcschemes/$APPLICATION_NAME.xcscheme"
+scheme_environment_value() {
+    local wanted_key="$1"
+    [ -f "$SCHEME_PATH" ] || return 0
+    awk -v wanted_key="$wanted_key" '
+        /<EnvironmentVariable/ { in_variable = 1; key = ""; value = "" }
+        in_variable && /key = "/ {
+            line = $0
+            sub(/^.*key = "/, "", line)
+            sub(/".*$/, "", line)
+            key = line
+        }
+        in_variable && /value = "/ {
+            line = $0
+            sub(/^.*value = "/, "", line)
+            sub(/".*$/, "", line)
+            value = line
+        }
+        in_variable && /<\/EnvironmentVariable>/ {
+            if (key == wanted_key) print value
+            in_variable = 0
+        }
+    ' "$SCHEME_PATH" | head -n 1
+}
+
+LASTFM_API_KEY_SOURCE="${LASTFM_API_KEY:-}"
+LASTFM_SECRET_SOURCE="${LASTFM_SECRET:-}"
+if [ -z "$LASTFM_API_KEY_SOURCE" ]; then
+    LASTFM_API_KEY_SOURCE="$(scheme_environment_value LASTFM_API_KEY)"
+fi
+if [ -z "$LASTFM_SECRET_SOURCE" ]; then
+    LASTFM_SECRET_SOURCE="$(scheme_environment_value LASTFM_SECRET)"
+fi
+
+# Trim whitespace/newlines (secrets pasted with newline cause Last.fm error 6).
+LASTFM_API_KEY_TRIMMED="$(echo "$LASTFM_API_KEY_SOURCE" | tr -d '\r\n' | xargs 2>/dev/null || echo "$LASTFM_API_KEY_SOURCE")"
+LASTFM_SECRET_TRIMMED="$(echo "$LASTFM_SECRET_SOURCE" | tr -d '\r\n' | xargs 2>/dev/null || echo "$LASTFM_SECRET_SOURCE")"
 
 if [ "${GITHUB_ACTIONS:-}" = "true" ] || [ -n "$LASTFM_API_KEY_TRIMMED" ] || [ -n "$LASTFM_SECRET_TRIMMED" ]; then
 
@@ -230,7 +262,7 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] || [ -n "$LASTFM_API_KEY_TRIMMED" ] || [ -
     fi
 
 else
-    echo "Local build: LASTFM_API_KEY / LASTFM_SECRET not provided - skipping Last.fm credential injection."
+    echo "Last.fm credentials not found in environment or scheme - skipping credential injection."
 fi
 
 # CI sets CURRENT_PROJECT_VERSION to the run number

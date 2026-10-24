@@ -8,8 +8,7 @@
 import Foundation
 
 extension String {
-    /// Nil when empty. Consolidates the verbatim duplicates in
-    /// DiscordGateway and DiscordIntegration.
+    /// Nil when empty.
     var nilIfEmpty: String? { isEmpty ? nil : self }
 
     /// True when empty or all whitespace.

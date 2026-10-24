@@ -28,6 +28,8 @@
 		14B578DF2FF20DCD006B3990 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 14B578DE2FF20DCC006B3990 /* Nuke */; };
 		14B578E52FF20DCF006B3990 /* Marquee in Frameworks */ = {isa = PBXBuildFile; productRef = 14B578E42FF20DCF006B3990 /* Marquee */; };
 		14B578F32FF21002006B3990 /* SwiftyTube in Frameworks */ = {isa = PBXBuildFile; productRef = 14B578F22FF21001006B3990 /* SwiftyTube */; };
+		D15C00010000000000000001 /* discord_partner_sdk.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = D15C00020000000000000001 /* discord_partner_sdk.xcframework */; };
+		D15C00030000000000000001 /* discord_partner_sdk.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = D15C00020000000000000001 /* discord_partner_sdk.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -45,6 +47,7 @@
 				144200263040C1BE0032F8CD /* fk_libswresample.xcframework in Embed Frameworks */,
 				144200273040C1BE0032F8CD /* fk_libswscale.xcframework in Embed Frameworks */,
 				144200283040C1BE0032F8CD /* ffmpegkit.xcframework in Embed Frameworks */,
+				D15C00030000000000000001 /* discord_partner_sdk.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,6 +64,7 @@
 		144200073040C1BE0032F8CD /* fk_libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = fk_libswscale.xcframework; path = "build/ffmpeg-kit-xcframeworks/fk_libswscale.xcframework"; sourceTree = SOURCE_ROOT; };
 		144200083040C1BE0032F8CD /* ffmpegkit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ffmpegkit.xcframework; path = "build/ffmpeg-kit-xcframeworks/ffmpegkit.xcframework"; sourceTree = SOURCE_ROOT; };
 		14B5762F2FF190EF006B3990 /* Trop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D15C00020000000000000001 /* discord_partner_sdk.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = discord_partner_sdk.xcframework; path = build/discord/discord_partner_sdk.xcframework; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -102,6 +106,7 @@
 				14B578DF2FF20DCD006B3990 /* Nuke in Frameworks */,
 				14B578E52FF20DCF006B3990 /* Marquee in Frameworks */,
 				14B578F32FF21002006B3990 /* SwiftyTube in Frameworks */,
+				D15C00010000000000000001 /* discord_partner_sdk.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -129,6 +134,7 @@
 				14B576312FF190EF006B3990 /* Trop */,
 				144200003040C1BE0032F8CD /* Frameworks */,
 				14B576302FF190EF006B3990 /* Products */,
+				14D78C92308D012A00BE059E /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -138,6 +144,14 @@
 				14B5762F2FF190EF006B3990 /* Trop.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		14D78C92308D012A00BE059E /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				D15C00020000000000000001 /* discord_partner_sdk.xcframework */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -408,6 +422,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/build/discord/discord_partner_sdk.xcframework/ios-arm64/discord_partner_sdk.framework/Headers";
 				INFOPLIST_FILE = Trop/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -420,6 +437,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = Trop/Discord/DiscordSocialBridge.h;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -436,6 +454,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/build/discord/discord_partner_sdk.xcframework/ios-arm64/discord_partner_sdk.framework/Headers";
 				INFOPLIST_FILE = Trop/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -448,6 +469,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = Trop/Discord/DiscordSocialBridge.h;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

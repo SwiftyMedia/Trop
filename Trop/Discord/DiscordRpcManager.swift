@@ -16,7 +16,57 @@ struct DiscordUser: Equatable {
     let avatar: String?
 }
 
-final class DiscordRpcManager: @unchecked Sendable {
+extension DiscordRpcManager: DiscordSocialBridgeDelegate {
+    func discordSocialAuthorizationSucceeded(
+        withAccessToken accessToken: String,
+        refreshToken: String,
+        expiresIn: Int,
+        scope: String
+    ) {
+        log("Social SDK authorization succeeded scope=\(scope) expiresIn=\(expiresIn)s hasRefresh=\(!refreshToken.isEmpty)")
+        self.accessToken = accessToken
+        accessTokenSubject.value = accessToken
+        _authorized = true
+        statusSubject.value = .authorizing
+        DiscordTokenStore.shared.storeFull(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresInSec: Int64(expiresIn)
+        )
+    }
+
+    func discordSocialAuthorizationFailed(_ message: String) {
+        log("Social SDK authorization failed: \(message)")
+        lastErrorSubject.value = "discord_error_invalid_scope"
+        statusSubject.value = .disconnected
+        _authorized = false
+        _ready = false
+        finishAuthorization(false)
+    }
+
+    func discordSocialStatusChanged(_ status: Int) {
+        log("Social SDK status=\(status)")
+        if status == 3 {
+            _ready = true
+            _authorized = true
+            statusSubject.value = .connected
+            lastErrorSubject.value = nil
+            finishAuthorization(true)
+            if let token = accessToken {
+                Task.detached { [weak self] in
+                    guard let self else { return }
+                    let user = await self.fetchCurrentUserAsync2(token: token)
+                    await MainActor.run { self.currentUserSubject.value = user }
+                }
+            }
+        } else if status == 0 {
+            _ready = false
+            statusSubject.value = .disconnected
+        }
+    }
+}
+
+final class DiscordRpcManager: NSObject, @unchecked Sendable {
     static let shared = DiscordRpcManager()
 
     enum Status: String { case disconnected, authorizing, connected }
@@ -55,20 +105,14 @@ final class DiscordRpcManager: @unchecked Sendable {
     private var lastActivity: ActivityPayload?
     private var currentSongId: String?
     private var currentIsPlaying: Bool = false
-    private var currentActivityId: Int64 = 0
-    private var currentActivityHadImages: Bool = false
-    private var imageResolutionTask: Task<Void, Never>?
 
     private let auth = DiscordAuth()
     private let appId = DiscordDefaults.appId
+    private let socialSDK = DiscordSocialBridge.shared()
 
-    private var gateway: DiscordGateway!
-    private var gatewayEventTask: Task<Void, Never>?
-
-    private init() {
-        gateway = DiscordGateway(appId: appId, tokenProvider: { [weak self] in
-            "Bearer \(self?.accessToken ?? "")"
-        })
+    override private init() {
+        super.init()
+        socialSDK.delegate = self
     }
 
     private func log(_ msg: String) {
@@ -81,20 +125,9 @@ final class DiscordRpcManager: @unchecked Sendable {
         guard !initialized else { return }
         initialized = true
         statusSubject.value = .disconnected
-        startEventCollection()
         Task {
             if let saved = DiscordTokenStore.shared.retrieve(), !saved.isEmpty {
                 reconnectWithToken(saved)
-            }
-        }
-    }
-
-    private func startEventCollection() {
-        gatewayEventTask?.cancel()
-        gatewayEventTask = Task { [weak self] in
-            guard let self else { return }
-            for await event in self.gateway.events {
-                await self.handleGatewayEvent(event)
             }
         }
     }
@@ -111,64 +144,18 @@ final class DiscordRpcManager: @unchecked Sendable {
         authorizeInProgress = true
         statusSubject.value = .authorizing
         lastErrorSubject.value = nil
+        authorizationCompletion = onComplete
 
-        Task { @MainActor in
-            do {
-                let result = try await auth.authorize(presentingAnchor: presentingAnchor)
-                DiscordTokenStore.shared.storeFull(
-                    accessToken: result.accessToken, refreshToken: result.refreshToken, expiresInSec: result.expiresInSec)
-                self.accessToken = result.accessToken
-                self.accessTokenSubject.value = result.accessToken
-                self._authorized = true
-                do {
-                    self.gateway.close(code: 4000, reason: "re-authorizing")
-                    // need to ensure gateway is connected then identify
-                    try await self.gateway.connect()
-                    try await self.gateway.identify(token: "Bearer \(result.accessToken)")
-                    onComplete(true)
-                } catch {
-                    self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                    self.statusSubject.value = .disconnected
-                    self._ready = false; self._authorized = false
-                    onComplete(false)
-                }
-            } catch let e as DiscordAuthError {
-                switch e {
-                case .userCancelled: self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                case .stateMismatch: self.lastErrorSubject.value = "discord_error_invalid_scope"
-                case .noBrowser: self.lastErrorSubject.value = "discord_error_no_browser"
-                case .invalidGrant: self.lastErrorSubject.value = "discord_error_token_refresh_failed"
-                case .networkFailure: self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                case .missingCode: self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                }
-                self.statusSubject.value = .disconnected
-                onComplete(false)
-            } catch {
-                self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                self.statusSubject.value = .disconnected
-                onComplete(false)
-            }
-            self.authorizeInProgress = false
-        }
+        Log.discord.info("Starting Discord Social SDK authorization")
+        socialSDK.authorize()
     }
 
-    func handleWebViewAuth(result: DiscordAuthResult) {
-        accessToken = result.accessToken
-        accessTokenSubject.value = result.accessToken
-        _authorized = true
-        statusSubject.value = .authorizing
-        Task {
-            do {
-                gateway.close(code: 4000, reason: "re-authorizing")
-                try await gateway.connect()
-                try await gateway.identify(token: "Bearer \(result.accessToken)")
-            } catch {
-                lastErrorSubject.value = "discord_error_loopback_timeout"
-                statusSubject.value = .disconnected
-                _ready = false
-                _authorized = false
-            }
-        }
+    private var authorizationCompletion: ((Bool) -> Void)?
+
+    private func finishAuthorization(_ success: Bool) {
+        authorizeInProgress = false
+        authorizationCompletion?(success)
+        authorizationCompletion = nil
     }
 
     func fetchCurrentUserAsync2(token: String) async -> DiscordUser? {
@@ -226,7 +213,7 @@ final class DiscordRpcManager: @unchecked Sendable {
     // MARK: - setActivity / clear
 
     func setActivity(activity: DiscordActivity, songId: String?, isPlaying: Bool = true, status: PresenceStatus = .online) {
-        guard _ready else { log("setActivity skipping not ready"); return }
+        guard _ready else { log("setActivity skipping not ready songId=\(songId ?? "-") status=\(status.rawValue)"); return }
         let largeChanged = activity.largeImage != nil
             && activity.largeImage != lastActivity?.largeImage
         let smallChanged = activity.smallImage != nil
@@ -237,8 +224,6 @@ final class DiscordRpcManager: @unchecked Sendable {
         if !stateChanged, lastActivitySentAtMs > 0, (now - lastActivitySentAtMs) < 2000 { log("setActivity debounced"); return }
         lastActivitySentAtMs = now
         currentSongId = songId; currentIsPlaying = isPlaying
-        currentActivityId &+= 1
-        currentActivityHadImages = !(activity.largeImage?.isEmpty ?? true) || !(activity.smallImage?.isEmpty ?? true)
 
         let buttons: [(String, String)] = {
             var arr: [(String, String)] = []
@@ -249,63 +234,42 @@ final class DiscordRpcManager: @unchecked Sendable {
 
         let payloadNoImages = DiscordPresence.buildActivity(
             name: activity.name ?? "",
-            type: activityTypeToEnum(activity.activityType),
+            type: ActivityType(rawValue: activity.activityType) ?? .listening,
             details: activity.details,
             state: activity.state,
-            largeImage: nil, largeText: nil, smallImage: nil, smallText: nil,
+            largeImage: activity.largeImage, largeText: activity.largeText,
+            smallImage: activity.smallImage, smallText: activity.smallText,
             startMs: activity.startTimestamp > 0 ? activity.startTimestamp : nil,
             endMs: activity.endTimestamp,
             buttons: buttons
         )
         lastActivity = payloadNoImages
-        do {
-            let json = DiscordPresence.buildPresenceUpdate(status: status, activities: [payloadNoImages])
-            try gateway.presenceUpdate(json)
-        } catch { log("gateway not open") }
+        log(
+            "Sending activity songId=\(songId ?? "-") playing=\(isPlaying) "
+                + "type=\(payloadNoImages.type) hasLarge=\(activity.largeImage != nil) "
+                + "hasSmall=\(activity.smallImage != nil) buttons=\(buttons.count)"
+        )
+        socialSDK.updateActivity(
+                withName: payloadNoImages.name,
+                activityType: activity.activityType,
+                details: payloadNoImages.details,
+                state: payloadNoImages.state,
+                startTimeMs: payloadNoImages.startMs ?? 0,
+                endTimeMs: payloadNoImages.endMs ?? 0,
+                largeImage: activity.largeImage,
+                largeText: activity.largeText,
+                smallImage: activity.smallImage,
+                smallText: activity.smallText,
+                buttons: buttons.map { ["label": $0.0, "url": $0.1] }
+        )
 
-        imageResolutionTask?.cancel()
-        guard let token = accessToken else { return }
-        let largeUrl = activity.largeImage; let smallUrl = activity.smallImage
-        if (largeUrl?.isEmpty ?? true) && (smallUrl?.isEmpty ?? true) { return }
-        let activityIdAtLaunch = currentActivityId
-        imageResolutionTask = Task { [weak self] in
-            guard let self else { return }
-            let tokenHeader = "Bearer \(token)"
-            let largeResolved = largeUrl != nil && !(largeUrl!.isEmpty)
-                ? await DiscordExternalAssets.resolve(imageUrl: largeUrl!, appId: self.appId, token: tokenHeader) : nil
-            let smallResolved = smallUrl != nil && !(smallUrl!.isEmpty)
-                ? await DiscordExternalAssets.resolve(imageUrl: smallUrl!, appId: self.appId, token: tokenHeader) : nil
-            if largeResolved == nil && smallResolved == nil { return }
-            guard activityIdAtLaunch == self.currentActivityId else { return }
-            let payloadWithImages = DiscordPresence.buildActivity(
-                name: activity.name ?? "",
-                type: self.activityTypeToEnum(activity.activityType),
-                details: activity.details, state: activity.state,
-                largeImage: largeResolved, largeText: activity.largeText,
-                smallImage: smallResolved, smallText: activity.smallText,
-                startMs: activity.startTimestamp > 0 ? activity.startTimestamp : nil,
-                endMs: activity.endTimestamp,
-                buttons: buttons
-            )
-            self.lastActivity = payloadWithImages
-            do {
-                let json = DiscordPresence.buildPresenceUpdate(status: status, activities: [payloadWithImages])
-                try self.gateway.presenceUpdate(json)
-            } catch { self.log("image presence send failed") }
-        }
     }
 
     func clear() {
         guard _ready else { return }
         if lastActivity == nil, currentSongId == nil { return }
-        lastActivity = nil; currentSongId = nil; currentIsPlaying = false; currentActivityHadImages = false
-        currentActivityId &+= 1; imageResolutionTask?.cancel()
-        do {
-            let json = DiscordPresence.buildPresenceUpdate(status: .online, activities: [])
-            try gateway.presenceUpdate(json)
-        } catch {
-            Log.discord.error("Failed to clear presence: \(error)")
-        }
+        lastActivity = nil; currentSongId = nil; currentIsPlaying = false
+        socialSDK.clearActivity()
     }
 
     // MARK: - reconnect
@@ -339,14 +303,7 @@ final class DiscordRpcManager: @unchecked Sendable {
                     self.log("refresh failed, continuing with old token: \(error)")
                 }
             }
-            do {
-                self.gateway.close(code: 4000, reason: "reconnecting")
-                try await self.gateway.connect()
-                try await self.gateway.identify(token: "Bearer \(self.accessToken ?? token)")
-            } catch {
-                self.lastErrorSubject.value = "discord_error_loopback_timeout"
-                self.statusSubject.value = .disconnected
-            }
+            self.socialSDK.connect(withAccessToken: self.accessToken ?? token)
         }
     }
 
@@ -371,20 +328,16 @@ final class DiscordRpcManager: @unchecked Sendable {
     // MARK: - disconnect / logout
 
     func disconnect() {
-        currentActivityId &+= 1; imageResolutionTask?.cancel()
-        gateway.close(code: 1000, reason: "user disconnect")
+        socialSDK.disconnect()
         statusSubject.value = .disconnected; _ready = false; _authorized = false
-        currentSongId = nil; currentIsPlaying = false; currentActivityHadImages = false
+        currentSongId = nil; currentIsPlaying = false
     }
 
     func destroy() {
-        currentActivityId &+= 1; imageResolutionTask?.cancel()
-        gateway.close(code: 1000, reason: "destroy")
-        gateway.closeHttp()
-        gatewayEventTask?.cancel()
+        socialSDK.disconnect()
         _ready = false; _authorized = false; initialized = false
         statusSubject.value = .disconnected
-        lastActivity = nil; currentSongId = nil; currentIsPlaying = false; currentActivityHadImages = false
+        lastActivity = nil; currentSongId = nil; currentIsPlaying = false
     }
 
     func logout() {
@@ -392,80 +345,22 @@ final class DiscordRpcManager: @unchecked Sendable {
         accessToken = nil; accessTokenSubject.value = nil
         currentUserSubject.value = nil
         DiscordTokenStore.shared.clear()
-        DiscordSuperProperties.reset()
         lastErrorSubject.value = nil
-        lastActivity = nil; currentActivityHadImages = false
+        lastActivity = nil
     }
 
     // MARK: - Helpers
 
     func isReady() -> Bool { _ready }
     func getAccessToken() -> String? { accessToken }
+    func shouldRefreshActivityTiming() -> Bool {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        return lastActivitySentAtMs == 0 || now - lastActivitySentAtMs >= 5_000
+    }
     func isShowingSong(songId: String, isPlaying: Bool) -> Bool {
         if currentSongId != songId || currentIsPlaying != isPlaying { return false }
         if lastActivity == nil { return false }
-        if currentActivityHadImages, lastActivity?.largeImage == nil, lastActivity?.smallImage == nil,
-           imageResolutionTask == nil || imageResolutionTask?.isCancelled == true {
-            // still resolving? treat as not shown
-            // Actually spec: if hadImages but payload has no images and job done => false
-            return false
-        }
         return true
     }
 
-    private func activityTypeToEnum(_ code: Int) -> ActivityType {
-        switch code {
-        case 0: return .playing
-        case 1: return .streaming
-        case 2: return .listening
-        case 3: return .watching
-        case 4: return .custom
-        case 5: return .competing
-        default: return .listening
-        }
-    }
-
-    private func handleGatewayEvent(_ event: GatewayEvent) async {
-        switch event {
-        case .ready:
-            _ready = true; _authorized = true
-            statusSubject.value = .connected; lastErrorSubject.value = nil
-            if let token = accessToken {
-                Task.detached { [weak self] in
-                    guard let self else { return }
-                    let user = await self.fetchCurrentUserAsync(token: token)
-                    await MainActor.run { self.currentUserSubject.value = user }
-                }
-            }
-        case .resumed:
-            _ready = true; _authorized = true
-            statusSubject.value = .connected; lastErrorSubject.value = nil
-        case .hello, .heartbeatAck, .textDispatch:
-            break
-        case .disconnected(let code, let reason, _):
-            _ready = false; _authorized = false
-            statusSubject.value = .disconnected
-            currentSongId = nil; currentIsPlaying = false
-            imageResolutionTask?.cancel(); imageResolutionTask = nil
-            if [4001, 4004].contains(code) && reason.lowercased().contains("max reconnect") {
-                if code == 4004 { lastErrorSubject.value = "discord_error_token_refresh_failed" } else if code == 4001 {
-                    lastErrorSubject.value = "discord_error_invalid_scope"
-                }
-            }
-            if code == 4014 { lastErrorSubject.value = "discord_error_invalid_scope" }
-        case .invalidSession:
-            imageResolutionTask?.cancel(); imageResolutionTask = nil
-        case .refreshToken:
-            await refreshAndReconnect()
-        }
-    }
-
-    private func fetchCurrentUserAsync(token: String) async -> DiscordUser? {
-        await withCheckedContinuation { cont in
-            DispatchQueue.global().async {
-                let u = self.fetchCurrentUser(token: token)
-                cont.resume(returning: u)
-            }
-        }
-    }
 }

@@ -33,17 +33,9 @@ final class LastFMIntegration {
         set { UserDefaults.standard.set(newValue, forKey: LastFMDefaults.scrobblingEnabledKey) }
     }
 
-    var isConfigured: Bool { LastFMDefaults.isConfigured }
     var isLoggedIn: Bool { LastFMTokenStore.shared.retrieveSessionKey() != nil }
 
     func start() {
-        if let sk = LastFMTokenStore.shared.retrieveSessionKey() {
-            LastFMService.shared.sessionKey = sk
-        }
-        UserDefaults.standard.publisher(for: \.lastfmScrobblingEnabled)
-            .sink { _ in }
-            .store(in: &cancellables)
-
         // Observe NowPlaying via periodic polling + playState publisher
         periodicTask?.cancel()
         periodicTask = Task { [weak self] in
@@ -278,17 +270,9 @@ final class LastFMIntegration {
 
     func logout() {
         LastFMTokenStore.shared.clear()
-        LastFMService.shared.sessionKey = nil
         onSongStop()
         currentVideoId = nil
         currentSong = nil
         lastScrobbledVideoId = nil
-    }
-}
-
-// MARK: - UserDefaults KVO
-private extension UserDefaults {
-    @objc dynamic var lastfmScrobblingEnabled: Bool {
-        bool(forKey: LastFMDefaults.scrobblingEnabledKey)
     }
 }

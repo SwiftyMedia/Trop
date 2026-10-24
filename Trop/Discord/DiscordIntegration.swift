@@ -110,7 +110,8 @@ final class DiscordIntegration {
             return
         }
         let isPlaying = NowPlaying.shared.isPlaying
-        if DiscordRpcManager.shared.isShowingSong(songId: videoId, isPlaying: isPlaying) { return }
+        if DiscordRpcManager.shared.isShowingSong(songId: videoId, isPlaying: isPlaying),
+           !DiscordRpcManager.shared.shouldRefreshActivityTiming() { return }
         guard let song = NowPlaying.shared.queueSongs.first(where: { $0.videoId == videoId }) else { return }
         await updateDiscordRPC(song: song, isPlaying: isPlaying)
     }
@@ -118,11 +119,12 @@ final class DiscordIntegration {
     @MainActor
     private func updateDiscordRPC(song: SongItem, isPlaying: Bool) async {
         guard DiscordRpcManager.shared.isReady(), isEnabled else { return }
-        let currentPosition = PlayerController.shared.currentTime
+        let currentPosition = max(0, NowPlaying.shared.currentTime)
         let duration = NowPlaying.shared.duration > 0 ? NowPlaying.shared.duration : TimeInterval(song.duration)
+        let clampedPosition = duration > 0 ? min(currentPosition, duration) : currentPosition
         let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
-        let startMs: Int64 = isPlaying ? nowMs - Int64(currentPosition * 1000) : 0
-        let remainingMs: Int64? = duration > 0 ? Int64((duration - currentPosition) * 1000) : nil
+        let startMs: Int64 = isPlaying ? nowMs - Int64(clampedPosition * 1000) : 0
+        let remainingMs: Int64? = duration > 0 ? Int64(max(0, duration - clampedPosition) * 1000) : nil
         let endMs: Int64? = (isPlaying && remainingMs != nil) ? nowMs + max(0, remainingMs!) : nil
 
         let artistName = song.artists.map(\.name).joined(separator: ", ").nilIfEmpty ?? DiscordDefaults.unknownArtist

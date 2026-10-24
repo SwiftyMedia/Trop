@@ -108,6 +108,24 @@ jobs:
       - name: Make build script executable
         run: chmod +x ./build_ipa.sh
 
+      - name: Download Discord Social SDK
+        env:
+          DISCORD_SOCIAL_SDK_URL: ${{ secrets.DISCORD_SOCIAL_SDK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$DISCORD_SOCIAL_SDK_URL"
+          ARCHIVE_PATH="$RUNNER_TEMP/discord-social-sdk.zip"
+          EXTRACT_PATH="$RUNNER_TEMP/discord-social-sdk"
+          rm -rf "$EXTRACT_PATH" build/discord
+          mkdir -p "$EXTRACT_PATH" build/discord
+          curl --fail --location --retry 3 --retry-delay 2 \
+            --silent --show-error "$DISCORD_SOCIAL_SDK_URL" \
+            --output "$ARCHIVE_PATH"
+          unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_PATH"
+          SDK_PATH="$(find "$EXTRACT_PATH" -type d -name 'discord_partner_sdk.xcframework' -print -quit)"
+          test -n "$SDK_PATH"
+          mv "$SDK_PATH" build/discord/discord_partner_sdk.xcframework
+
       - name: Build release IPA
         run: ./build_ipa.sh
         env:

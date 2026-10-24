@@ -11,7 +11,6 @@ struct DiscordSettingsView: View {
     @State private var lastError: String?
     @State private var currentUser: DiscordUser?
     @State private var isBusy = false
-    @State private var showWebView = false
 
     @AppStorage("discordRPCEnable") private var discordEnabled = true
     @AppStorage("discordInfoDismissed") private var infoDismissed = false
@@ -44,7 +43,7 @@ struct DiscordSettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         Label(
-                            "Discord Rich Presence uses public OAuth + Gateway. Token stays encrypted in Keychain.",
+                            "Discord Rich Presence uses Discord's Social SDK. Token stays encrypted in Keychain.",
                             systemImage: "info.circle"
                         )
                         .font(.footnote)
@@ -97,7 +96,15 @@ struct DiscordSettingsView: View {
                         if isBusy {
                             ProgressView()
                         } else {
-                            Button("Login") { showWebView = true }
+                            Button("Login") {
+                                isBusy = true
+                                DiscordRpcManager.shared.authorize { success in
+                                    isBusy = false
+                                    if success {
+                                        Task { await refreshUser() }
+                                    }
+                                }
+                            }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
                         }
@@ -210,14 +217,6 @@ struct DiscordSettingsView: View {
         .navigationTitle("Discord")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { bind() }
-        .sheet(isPresented: $showWebView) {
-            DiscordOAuthWebView { success in
-                isBusy = false
-                if success {
-                    Task { await refreshUser() }
-                }
-            }
-        }
         .task { await refreshUserIfNeeded() }
         .textPrompt("Activity Name", isPresented: $showActivityNameEditor, placeholder: "Activity Name", text: $activityName) {
             DiscordRpcManager.shared.notifySettingsChanged()

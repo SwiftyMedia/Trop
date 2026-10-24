@@ -8,35 +8,30 @@
 import Foundation
 
 enum LastFMDefaults {
-    // API credentials — override via UserDefaults or Info.plist for release builds
-    // For development they can be injected via TropApp initialization.
+    // API credentials come from the local Xcode environment in debug builds
+    // or Info.plist in release builds.
     static var apiKey: String {
-        if let override = UserDefaults.standard.string(forKey: "lastfmApiKeyOverride")?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !override.isEmpty { return override }
+        if let env = ProcessInfo.processInfo.environment["LASTFM_API_KEY"] {
+            let trimmed = env.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
         if let plist = Bundle.main.object(forInfoDictionaryKey: "LASTFM_API_KEY") as? String {
             let trimmed = plist.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
         }
-        return _apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ""
     }
 
     static var secret: String {
-        if let override = UserDefaults.standard.string(forKey: "lastfmSecretOverride")?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !override.isEmpty { return override }
+        if let env = ProcessInfo.processInfo.environment["LASTFM_SECRET"] {
+            let trimmed = env.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
         if let plist = Bundle.main.object(forInfoDictionaryKey: "LASTFM_SECRET") as? String {
             let trimmed = plist.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
         }
-        return _secret.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    // Fallback only — `LASTFM_API_KEY`/`LASTFM_SECRET` are injected via GH Secrets -> Info.plist at build time
-    private static var _apiKey: String = ""
-    private static var _secret: String = ""
-
-    static func configure(apiKey: String, secret: String) {
-        _apiKey = apiKey
-        _secret = secret
+        return ""
     }
 
     static var isConfigured: Bool { !apiKey.isEmpty && !secret.isEmpty }

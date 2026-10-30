@@ -125,7 +125,7 @@ struct FullPlayerView: View {
                         LyricsView(
                             showLyrics: $showLyrics,
                             pendingRoute: $pendingRoute,
-                            progressSlider: { progressSlider }
+                            progressSlider: { progressSlider(horizontalPadding: horizontalPadding) }
                         )
                     } else if np.isVideoMode && np.hasVideo {
                         musicVideoContent
@@ -137,7 +137,7 @@ struct FullPlayerView: View {
                             editingProgress: $editingProgress,
                             isEditingSlider: $isEditingSlider,
                             pendingRoute: $pendingRoute,
-                            progressSlider: { progressSlider }
+                            progressSlider: { progressSlider(horizontalPadding: horizontalPadding) }
                         )
                     } else {
                         Color.clear.frame(height: isCompact ? 4 : 8)
@@ -180,15 +180,9 @@ struct FullPlayerView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 33, alignment: .bottom)
 
-                        HStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                            progressSlider
-                                .frame(width: max(0, geometry.size.width - horizontalPadding * 2))
-                            Spacer(minLength: 0)
-                        }
-                        .frame(width: geometry.size.width)
-                        .padding(.top, 4)
-                        .padding(.bottom, isCompact ? 8 : 12)
+                        progressSlider(horizontalPadding: horizontalPadding)
+                            .padding(.top, 4)
+                            .padding(.bottom, isCompact ? 8 : 12)
 
                         PlaybackControlsRow(
                             isPlaying: np.isPlaying,
@@ -369,7 +363,7 @@ struct FullPlayerView: View {
                 editingProgress: $editingProgress,
                 isEditingSlider: $isEditingSlider,
                 pendingRoute: $pendingRoute,
-                progressSlider: { progressSlider },
+                progressSlider: { progressSlider(horizontalPadding: 32) },
                 isVideoMode: true
             )
             .frame(maxHeight: .infinity)
@@ -455,7 +449,7 @@ struct FullPlayerView: View {
         }
     }
 
-    private var progressSlider: some View {
+    private func progressSlider(horizontalPadding: CGFloat) -> some View {
         VStack(spacing: 6) {
             ProgressBar(
                 progress: Binding(
@@ -491,6 +485,7 @@ struct FullPlayerView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
+        .padding(.horizontal, horizontalPadding)
     }
 
 }

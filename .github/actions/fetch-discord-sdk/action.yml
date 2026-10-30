@@ -1,0 +1,57 @@
+name: Fetch Discord Social SDK
+description: >-
+  Restore the Discord Social SDK XCFramework from the GitHub Actions cache, or
+  download it once from the signed (expiring) URL and cache it for later runs.
+
+inputs:
+  url:
+    description: Signed Discord Social SDK download URL.
+    required: true
+  cache-version:
+    description: >-
+      Cache namespace for the SDK. Bump this when the Discord SDK version
+      changes so the new archive is downloaded once and cached again.
+    required: false
+    default: "1"
+
+runs:
+  using: composite
+  steps:
+    - name: Restore Discord Social SDK from cache
+      id: cache
+      uses: actions/cache/restore@v4
+      with:
+        path: build/discord/discord_partner_sdk.xcframework
+        key: discord-social-sdk-${{ runner.os }}-${{ inputs['cache-version'] }}
+
+    - name: Download and extract Discord Social SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        DISCORD_SOCIAL_SDK_URL: ${{ inputs.url }}
+      run: |
+        set -euo pipefail
+        test -n "$DISCORD_SOCIAL_SDK_URL"
+
+        ARCHIVE_PATH="$RUNNER_TEMP/discord-social-sdk.zip"
+        EXTRACT_PATH="$RUNNER_TEMP/discord-social-sdk"
+        rm -rf "$EXTRACT_PATH" build/discord
+        mkdir -p "$EXTRACT_PATH" build/discord
+
+        curl --fail --location --retry 3 --retry-delay 2 \
+          --silent --show-error "$DISCORD_SOCIAL_SDK_URL" \
+          --output "$ARCHIVE_PATH"
+        unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_PATH"
+
+        SDK_PATH="$(find "$EXTRACT_PATH" -type d -name 'discord_partner_sdk.xcframework' -print -quit)"
+        test -n "$SDK_PATH"
+        mv "$SDK_PATH" build/discord/discord_partner_sdk.xcframework
+
+    - name: Save Discord Social SDK to cache
+      if: steps.cache.outputs.cache-hit != 'true'
+      # A concurrent job may populate the same key first; that is not fatal.
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: build/discord/discord_partner_sdk.xcframework
+        key: discord-social-sdk-${{ runner.os }}-${{ inputs['cache-version'] }}

@@ -28,6 +28,7 @@ struct PlayerMenuSheet: View {
     @State private var showPlaylistPicker = false
     @State private var showArtistPicker = false
     @State private var showRadioOptions = false
+    @State private var showShareDialog = false
     @State private var isResolvingArtist = false
     @ObservedObject private var downloadManager = DownloadManager.shared
 
@@ -103,6 +104,18 @@ struct PlayerMenuSheet: View {
         .sheet(isPresented: $showRadioOptions) {
             RadioOptionsSheet(song: song)
         }
+        .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
+            Button("Copy Link") {
+                UIPasteboard.general.string = song.webUrl
+                dismiss()
+            }
+            Button("Share with Other Apps") {
+                shareSong(song, downloadManager: downloadManager, afterDismiss: { dismiss() })
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(song.title)
+        }
         .task { await pin.load(videoId: song.videoId) }
     }
 
@@ -166,9 +179,8 @@ struct PlayerMenuSheet: View {
                 showPlaylistPicker = true
             }
             separator
-            actionButton(icon: "link", label: "Copy Link") {
-                UIPasteboard.general.string = song.webUrl
-                dismiss()
+            actionButton(icon: "square.and.arrow.up", label: "Share") {
+                showShareDialog = true
             }
         }
         .background(Color(.secondarySystemGroupedBackground))

@@ -25,6 +25,7 @@ struct SongMenuSheet: View {
     @State private var showPlaylistPicker = false
     @State private var showArtistPicker = false
     @State private var showRadioOptions = false
+    @State private var showShareDialog = false
     @State private var isResolvingArtist = false
 
     private var isLiked: Bool {
@@ -130,6 +131,18 @@ struct SongMenuSheet: View {
         .sheet(isPresented: $showRadioOptions) {
             RadioOptionsSheet(song: song)
         }
+        .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
+            Button("Copy Link") {
+                UIPasteboard.general.string = song.webUrl
+                dismiss()
+            }
+            Button("Share with Other Apps") {
+                share()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(song.title)
+        }
         .task { await pin.load(videoId: song.videoId) }
     }
 
@@ -176,7 +189,7 @@ struct SongMenuSheet: View {
             }
             separator
             actionButton(icon: "square.and.arrow.up", label: "Share") {
-                share()
+                showShareDialog = true
             }
         }
         .background(Color(.secondarySystemGroupedBackground))
@@ -250,7 +263,7 @@ struct SongMenuSheet: View {
     }
 
     private func share() {
-        presentShareSheet(items: [song.webUrl], afterDismiss: { dismiss() })
+        shareSong(song, downloadManager: downloadManager, afterDismiss: { dismiss() })
     }
 
     private func navigate(_ route: DetailRoute) {

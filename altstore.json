@@ -25,12 +25,12 @@
       ],
       "versions": [
         {
-          "version": "0.0.5",
+          "version": "0.0.4",
           "buildVersion": "1",
-          "date": "2026-10-23T18:16:53Z",
-          "localizedDescription": "**Full Changelog**: https://github.com/SwiftyMedia/Trop/compare/v0.0.3...v0.0.5\n\n[Discord](https://discord.gg/QrMwZAfU97)",
-          "downloadURL": "https://github.com/SwiftyMedia/Trop/releases/download/v0.0.5/Trop.ipa",
-          "size": 47611625,
+          "date": "2026-10-23T20:01:13Z",
+          "localizedDescription": "**Full Changelog**: https://github.com/SwiftyMedia/Trop/compare/v0.0.3...v0.0.4\n\n[Discord](https://discord.gg/QrMwZAfU97)",
+          "downloadURL": "https://github.com/SwiftyMedia/Trop/releases/download/v0.0.4/Trop.ipa",
+          "size": 47614536,
           "minOSVersion": "26.0"
         }
       ]

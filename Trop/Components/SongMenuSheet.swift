@@ -26,6 +26,7 @@ struct SongMenuSheet: View {
     @State private var showArtistPicker = false
     @State private var showRadioOptions = false
     @State private var showShareDialog = false
+    @State private var showComments = false
     @State private var isResolvingArtist = false
 
     private var isLiked: Bool {
@@ -78,6 +79,12 @@ struct SongMenuSheet: View {
                     }
                 }
                 MenuCard {
+                    MenuRow(
+                        icon: "bubble.left.and.bubble.right",
+                        title: "Comments",
+                        subtitle: "Top & newest from YouTube"
+                    ) { showComments = true }
+                    Divider()
                     NavigationLink(value: Destination.details) {
                         MenuRowLabel(
                             icon: "info.circle",
@@ -130,6 +137,9 @@ struct SongMenuSheet: View {
         }
         .sheet(isPresented: $showRadioOptions) {
             RadioOptionsSheet(song: song)
+        }
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(videoId: song.videoId, songTitle: song.title)
         }
         .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
             Button("Copy Link") {

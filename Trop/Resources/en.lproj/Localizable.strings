@@ -14,6 +14,7 @@
 "Activity Type" = "Activity Type";
 "Add" = "Add";
 "Add Songs" = "Add Songs";
+"Add a comment…" = "Add a comment…";
 "Add to Playlist" = "Add to Playlist";
 "Add to Queue" = "Add to Queue";
 "Add to the end of the queue" = "Add to the end of the queue";
@@ -59,6 +60,9 @@
 "Client" = "Client";
 "Close" = "Close";
 "Closest matches to this song" = "Closest matches to this song";
+"Comments" = "Comments";
+"Comments are disabled for this song" = "Comments are disabled for this song";
+"Comments · %@" = "Comments · %@";
 "Community playlists" = "Community playlists";
 "Commute" = "Commute";
 "Competing" = "Competing";
@@ -80,8 +84,10 @@
 "Couldn't load album" = "Couldn't load album";
 "Couldn't load artist" = "Couldn't load artist";
 "Couldn't load history" = "Couldn't load history";
+"Couldn't load more. Tap to retry." = "Couldn't load more. Tap to retry.";
 "Couldn't load playlist" = "Couldn't load playlist";
 "Couldn't load podcast" = "Couldn't load podcast";
+"Couldn't load replies. Tap to retry." = "Couldn't load replies. Tap to retry.";
 "Couldn't load your homescreen" = "Couldn't load your homescreen";
 "Country" = "Country";
 "Covers and remixes" = "Covers and remixes";
@@ -229,6 +235,7 @@
 "New albums & singles" = "New albums & singles";
 "New playlist" = "New playlist";
 "New releases" = "New releases";
+"Newest" = "Newest";
 "Next" = "Next";
 "No Downloads Yet" = "No Downloads Yet";
 "No History" = "No History";
@@ -237,6 +244,7 @@
 "No Results" = "No Results";
 "No album data" = "No album data";
 "No artist data" = "No artist data";
+"No comments yet" = "No comments yet";
 "No content found" = "No content found";
 "No episodes found" = "No episodes found";
 "No playlist data" = "No playlist data";
@@ -288,16 +296,19 @@
 "Quick Picks" = "Quick Picks";
 "Rating" = "Rating";
 "Re-sync" = "Re-sync";
+"Read more" = "Read more";
 "Recently Played" = "Recently Played";
 "Recently searched" = "Recently searched";
 "Refetch" = "Refetch";
 "Region" = "Region";
 "Relax" = "Relax";
+"Remember to keep comments respectful and follow community guidelines." = "Remember to keep comments respectful and follow community guidelines.";
 "Remove" = "Remove";
 "Remove All Downloads" = "Remove All Downloads";
 "Remove Download" = "Remove Download";
 "Remove all downloads" = "Remove all downloads";
 "Remove from Playlist" = "Remove from Playlist";
+"Replies" = "Replies";
 "Reset offset" = "Reset offset";
 "Results" = "Results";
 "Retry" = "Retry";
@@ -331,6 +342,7 @@
 "Share with Other Apps" = "Share with Other Apps";
 "Show Interval Indicator" = "Show Interval Indicator";
 "Show Quick Picks" = "Show Quick Picks";
+"Show more replies" = "Show more replies";
 "Shows a progress ring during long instrumental gaps" = "Shows a progress ring during long instrumental gaps";
 "Shuffle" = "Shuffle";
 "Shuffle artist" = "Shuffle artist";
@@ -389,6 +401,8 @@
 "This week" = "This week";
 "Title" = "Title";
 "Today" = "Today";
+"Top" = "Top";
+"Top & newest from YouTube" = "Top & newest from YouTube";
 "Top 100" = "Top 100";
 "Top Lists Length" = "Top Lists Length";
 "Track" = "Track";

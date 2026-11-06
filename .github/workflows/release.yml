@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Optional release version (for example, 1.2.3). Leave blank to bump automatically.
+        description: Optional release version (for example, 1.2.3). Leave blank to bump automatically from the latest GitHub release.
         required: false
         type: string
 
@@ -25,6 +25,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
+        with:
+          # Full history so post-release rebase/push cannot drop earlier bot commits.
+          fetch-depth: 0
 
       - name: Calculate release version
         id: version
@@ -32,6 +35,7 @@ jobs:
           REF: ${{ github.ref }}
           GH_TOKEN: ${{ github.token }}
           REQUESTED_VERSION: ${{ inputs.version }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ "$REF" != "refs/heads/main" ]]; then
@@ -39,7 +43,14 @@ jobs:
             exit 1
           fi
 
-          VERSION_DATA="$(python3 - <<'PY'
+          LATEST_TAG="$(gh api "repos/${REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Latest release tag must look like v1.2.3, got: ${LATEST_TAG}" >&2
+            exit 1
+          fi
+          export LATEST_VERSION="${LATEST_TAG#v}"
+
+          VERSION="$(python3 - <<'PY'
           import os
           import re
           from pathlib import Path
@@ -54,7 +65,25 @@ jobs:
                   "Expected matching MARKETING_VERSION values for Debug and Release."
               )
 
+          def parse(version: str) -> tuple[int, int, int]:
+              major, minor, patch = (int(part) for part in version.split("."))
+              return major, minor, patch
+
+          def bump(version: str) -> str:
+              major, minor, patch = parse(version)
+              patch += 1
+              if patch == 10:
+                  patch = 0
+                  minor += 1
+              if minor == 10:
+                  minor = 0
+                  major += 1
+              return f"{major}.{minor}.{patch}"
+
           requested = os.environ["REQUESTED_VERSION"].strip()
+          latest = os.environ["LATEST_VERSION"]
+          marketing = versions[0]
+
           if requested:
               if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", requested):
                   raise SystemExit(
@@ -62,23 +91,14 @@ jobs:
                   )
               version = requested
           else:
-              parts = [int(part) for part in versions[0].split(".")]
-              parts[2] += 1
-              if parts[2] == 10:
-                  parts[2] = 0
-                  parts[1] += 1
-              if parts[1] == 10:
-                  parts[1] = 0
-                  parts[0] += 1
-              version = ".".join(map(str, parts))
+              # GitHub releases are source of truth; MARKETING_VERSION can lag after manual releases.
+              base = max(latest, marketing, key=parse)
+              version = bump(base)
 
-          print(versions[0])
           print(version)
           PY
           )"
-          OLD_VERSION="${VERSION_DATA%%$'\n'*}"
-          VERSION="${VERSION_DATA#*$'\n'}"
-          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
@@ -123,51 +143,18 @@ jobs:
           CURRENT_PROJECT_VERSION: ${{ github.run_number }}
           MARKETING_VERSION: ${{ steps.version.outputs.version }}
 
-      - name: Commit release version to project
-        env:
-          OLD_VERSION: ${{ steps.version.outputs.old_version }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-
-          path = Path("Trop.xcodeproj/project.pbxproj")
-          contents = path.read_text()
-          old = f"MARKETING_VERSION = {os.environ['OLD_VERSION']};"
-          new = f"MARKETING_VERSION = {os.environ['VERSION']};"
-          updated, count = re.subn(re.escape(old), new, contents)
-          if count != 2:
-              raise SystemExit(
-                  f"Expected exactly two old MARKETING_VERSION settings, found {count}."
-              )
-          path.write_text(updated)
-          PY
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Trop.xcodeproj/project.pbxproj
-          if git diff --cached --quiet; then
-            echo "Project version already matches v${VERSION}"
-            exit 0
-          fi
-          git commit -m "chore(release): set version to v${VERSION} [skip ci]"
-          git push origin HEAD:main
-
       - name: Generate release notes from changes
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.version.outputs.latest_version }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          PREVIOUS_TAG="$(gh api "repos/${REPOSITORY}/releases/latest" --jq '.tag_name')"
           gh api --method POST "repos/${REPOSITORY}/releases/generate-notes" \
             -f tag_name="v${VERSION}" \
             -f target_commitish=main \
-            -f previous_tag_name="${PREVIOUS_TAG}" > release-notes-response.json
+            -f previous_tag_name="v${PREVIOUS_VERSION}" > release-notes-response.json
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -191,29 +178,56 @@ jobs:
             --title "v${VERSION}" \
             --notes-file release-notes.md
 
-      - name: Update AltStore source
+      - name: Update project version and AltStore source
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ github.run_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+
+          # Refuse to publish an AltStore entry until the release asset actually exists.
+          ASSET_NAME="$(gh api "repos/${REPOSITORY}/releases/tags/v${VERSION}" \
+            --jq '.assets[] | select(.name == "Trop.ipa") | .name')"
+          if [[ "$ASSET_NAME" != "Trop.ipa" ]]; then
+            echo "Release v${VERSION} has no Trop.ipa asset; refusing to update altstore.json." >&2
+            exit 1
+          fi
+
           IPA_PATH="build/Trop.ipa"
           export SIZE="$(stat -f%z "$IPA_PATH")"
-          export DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          export DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/Trop.ipa"
+          export DATE="$(gh api "repos/${REPOSITORY}/releases/tags/v${VERSION}" --jq '.published_at')"
+          export DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download/v${VERSION}/Trop.ipa"
           export RELEASE_NOTES="$(cat release-notes.md)"
+          export VERSION
 
           python3 - <<'PY'
           import json
           import os
+          import re
           from pathlib import Path
+
+          version = os.environ["VERSION"]
+
+          pbxproj = Path("Trop.xcodeproj/project.pbxproj")
+          contents = pbxproj.read_text()
+          updated, count = re.subn(
+              r"MARKETING_VERSION = [0-9]+\.[0-9]+\.[0-9]+;",
+              f"MARKETING_VERSION = {version};",
+              contents,
+          )
+          if count != 2:
+              raise SystemExit(
+                  f"Expected exactly two MARKETING_VERSION settings, found {count}."
+              )
+          pbxproj.write_text(updated)
 
           path = Path("altstore.json")
           source = json.loads(path.read_text())
           app = source["apps"][0]
           entry = {
-              "version": os.environ["VERSION"],
+              "version": version,
               "buildVersion": os.environ["BUILD_NUMBER"],
               "date": os.environ["DATE"],
               "localizedDescription": os.environ["RELEASE_NOTES"],
@@ -226,17 +240,19 @@ jobs:
           print(f"Updated altstore.json -> {entry['version']} ({entry['size']} bytes)")
           PY
 
-      - name: Commit AltStore source
+      - name: Commit release metadata
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add altstore.json
+          git add Trop.xcodeproj/project.pbxproj altstore.json
           if git diff --cached --quiet; then
-            echo "altstore.json unchanged"
+            echo "Release metadata already matches v${VERSION}"
             exit 0
           fi
-          git commit -m "altstore.json: publish release v${VERSION} [skip ci]"
+          git commit -m "chore(release): publish v${VERSION} metadata [skip ci]"
+          # Rebase onto latest main so a concurrent push cannot orphan this commit.
+          git pull --rebase origin main
           git push origin HEAD:main

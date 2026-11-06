@@ -14,6 +14,7 @@
 "Activity Type" = "活动类型";
 "Add" = "添加";
 "Add Songs" = "添加歌曲";
+"Add a comment…" = "添加评论…";
 "Add to Playlist" = "添加到播放列表";
 "Add to Queue" = "添加到队列";
 "Add to the end of the queue" = "添加到队列末尾";
@@ -59,6 +60,9 @@
 "Client" = "客户端";
 "Close" = "关闭";
 "Closest matches to this song" = "与此歌曲最相似的内容";
+"Comments" = "评论";
+"Comments are disabled for this song" = "此歌曲已关闭评论";
+"Comments · %@" = "评论 · %@";
 "Community playlists" = "社区歌单";
 "Commute" = "通勤";
 "Competing" = "竞赛中";
@@ -80,8 +84,10 @@
 "Couldn't load album" = "无法加载专辑";
 "Couldn't load artist" = "无法加载艺人";
 "Couldn't load history" = "无法加载历史记录";
+"Couldn't load more. Tap to retry." = "无法加载更多。点按重试。";
 "Couldn't load playlist" = "无法加载播放列表";
 "Couldn't load podcast" = "无法加载播客";
+"Couldn't load replies. Tap to retry." = "无法加载回复。点按重试。";
 "Couldn't load your homescreen" = "无法加载主页";
 "Country" = "国家/地区";
 "Covers and remixes" = "翻唱与混音";
@@ -229,6 +235,7 @@
 "New albums & singles" = "新专辑与单曲";
 "New playlist" = "新建播放列表";
 "New releases" = "新发布";
+"Newest" = "最新";
 "Next" = "下一首";
 "No Downloads Yet" = "暂无下载";
 "No History" = "没有历史记录";
@@ -237,6 +244,7 @@
 "No Results" = "没有结果";
 "No album data" = "无专辑数据";
 "No artist data" = "无艺人数据";
+"No comments yet" = "暂无评论";
 "No content found" = "未找到内容";
 "No episodes found" = "未找到剧集";
 "No playlist data" = "无播放列表数据";
@@ -288,16 +296,19 @@
 "Quick Picks" = "快捷精选";
 "Rating" = "评分";
 "Re-sync" = "重新同步";
+"Read more" = "阅读更多";
 "Recently Played" = "最近播放";
 "Recently searched" = "最近搜索";
 "Refetch" = "重新获取";
 "Region" = "地区";
 "Relax" = "放松";
+"Remember to keep comments respectful and follow community guidelines." = "请保持评论友善，并遵守社区准则。";
 "Remove" = "移除";
 "Remove All Downloads" = "移除所有下载";
 "Remove Download" = "移除下载";
 "Remove all downloads" = "移除所有下载";
 "Remove from Playlist" = "从播放列表移除";
+"Replies" = "回复";
 "Reset offset" = "重置偏移";
 "Results" = "结果";
 "Retry" = "重试";
@@ -331,6 +342,7 @@
 "Share with Other Apps" = "与其它应用分享";
 "Show Interval Indicator" = "显示间隔指示器";
 "Show Quick Picks" = "显示快捷精选";
+"Show more replies" = "显示更多回复";
 "Shows a progress ring during long instrumental gaps" = "在较长的纯音乐间隔期间显示进度环";
 "Shuffle" = "随机播放";
 "Shuffle artist" = "随机播放艺人歌曲";
@@ -389,6 +401,8 @@
 "This week" = "本周";
 "Title" = "标题";
 "Today" = "今天";
+"Top" = "热门";
+"Top & newest from YouTube" = "来自 YouTube 的热门与最新评论";
 "Top 100" = "热门 100 首";
 "Top Lists Length" = "热门榜单长度";
 "Track" = "歌曲";

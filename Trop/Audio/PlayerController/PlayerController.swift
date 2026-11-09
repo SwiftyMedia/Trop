@@ -146,7 +146,7 @@ final class PlayerController {
         guard pendingResumeAt > 0 else { return }
         let target = pendingResumeAt
         pendingResumeAt = 0
-        seek(to: target)
+        seek(to: target, isUserAction: false)
     }
 }
 
@@ -236,8 +236,12 @@ extension PlayerController {
         setNowPlayingMetadata()
     }
 
-    func seek(to time: TimeInterval) {
-        SleepTimerController.shared.noteUserInteraction()
+    func seek(to time: TimeInterval, isUserAction: Bool = true) {
+        // Only user seeks cancel a sleep fade. Automatic seeks (SponsorBlock,
+        // resume offsets) must not abort the timer mid-fade.
+        if isUserAction {
+            SleepTimerController.shared.noteUserInteraction()
+        }
         pendingSeek = (time, Date().addingTimeInterval(1.5))
         NowPlaying.shared.currentTime = time
         withMpv { mpv in

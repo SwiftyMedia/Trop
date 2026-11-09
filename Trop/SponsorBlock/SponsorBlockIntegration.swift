@@ -82,7 +82,7 @@ final class SponsorBlockIntegration {
             // Within the last second the jump isn't worth it.
             guard position >= segment.start, position < segment.end - 1 else { continue }
             skipped.insert(index)
-            player.seek(to: segment.end)
+            player.seek(to: segment.end, isUserAction: false)
             return
         }
     }

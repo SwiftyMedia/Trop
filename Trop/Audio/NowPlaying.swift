@@ -226,6 +226,9 @@ final class NowPlaying {
         afterResolve: (() -> Void)? = nil
     ) {
         guard queueSongs.indices.contains(queueIndex) else { return }
+        // Cancel an in-progress sleep fade as soon as a new track is requested
+        // (next/prev/queue), before async resolve finishes.
+        SleepTimerController.shared.noteUserInteraction()
         if manageResolvingFlag {
             isResolvingNext = true
         }

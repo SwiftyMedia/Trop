@@ -148,8 +148,9 @@ struct MusixmatchProvider: LyricsProvider {
         else { return nil }
 
         let lines: [LyricLine] = arr.compactMap { item in
-            let ts = item["ts"] as? Double ?? 0
-            let te = item["te"] as? Double
+            // ts=0 is valid (first line); do not coerce to nil or serialize/seek drop words.
+            let ts = Self.jsonDouble(item["ts"]) ?? 0
+            let te = Self.jsonDouble(item["te"])
             let lineText = (item["x"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let chunks = item["l"] as? [[String: Any]] ?? []
@@ -159,11 +160,11 @@ struct MusixmatchProvider: LyricsProvider {
                 let c = chunk["c"] as? String ?? ""
                 // Skip empty chunks; keep whitespace-only chunks so spacing stays correct.
                 guard !c.isEmpty else { continue }
-                let offset = chunk["o"] as? Double ?? 0
+                let offset = Self.jsonDouble(chunk["o"]) ?? 0
                 let start = ts + offset
                 let end: TimeInterval?
                 if index + 1 < chunks.count,
-                   let nextOffset = chunks[index + 1]["o"] as? Double {
+                   let nextOffset = Self.jsonDouble(chunks[index + 1]["o"]) {
                     end = ts + nextOffset
                 } else {
                     end = te
@@ -174,9 +175,20 @@ struct MusixmatchProvider: LyricsProvider {
             let plain = lineText.isEmpty ? words.map(\.text).joined() : lineText
             guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             let wordList = words.count >= 2 ? words : nil
-            return LyricLine(text: plain, startTime: ts > 0 ? ts : nil, words: wordList)
+            return LyricLine(text: plain, startTime: ts, words: wordList)
         }
         return lines.isEmpty ? nil : lines
+    }
+
+    /// JSONSerialization may surface whole numbers as Int/NSNumber.
+    private static func jsonDouble(_ value: Any?) -> Double? {
+        switch value {
+        case let d as Double: return d
+        case let i as Int: return Double(i)
+        case let i as Int64: return Double(i)
+        case let n as NSNumber: return n.doubleValue
+        default: return nil
+        }
     }
 
     // MARK: - Headers

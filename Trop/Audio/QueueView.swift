@@ -267,6 +267,7 @@ struct QueueView<ProgressSlider: View>: View {
     private func playSong(at index: Int) {
         guard np.queueSongs.indices.contains(index) else { return }
         np.lastManualSkipTime = Date()
+        PlayerController.shared.cancelCrossfade()
         np.queueIndex = index
         np.playCurrentSong(logContext: "resolveAndPlay", manageResolvingFlag: false)
     }
@@ -277,6 +278,7 @@ struct QueueView<ProgressSlider: View>: View {
         let removedVideoId = np.queueSongs[index].videoId
         np.queueSongs.remove(at: index)
         if wasCurrent {
+            PlayerController.shared.cancelCrossfade()
             if np.queueSongs.isEmpty {
                 np.queueIndex = 0
                 np.isPlaying = false

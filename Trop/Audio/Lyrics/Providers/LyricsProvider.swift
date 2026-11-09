@@ -94,9 +94,14 @@ enum LyricsParsing {
     /// Serializes lines back to LRC/plain text for storage and editing.
     /// Word timings are written as Enhanced LRC `<mm:ss.xx>` tags when present.
     static func serializeLines(_ lines: [LyricLine]) -> String {
-        let synced = lines.contains { $0.startTime != nil }
+        let synced = lines.contains {
+            $0.startTime != nil || ($0.words?.count ?? 0) >= 2
+        }
         return lines.map { line in
-            guard synced, let t = line.startTime else { return line.text }
+            // Prefer line start; fall back to first word so word-timed lines
+            // at t=0 (or with a nil start) are not written as plain text.
+            let t = line.startTime ?? line.words?.first?.startTime
+            guard synced, let t else { return line.text }
             let prefix = formatLrcTimestamp(t)
             if let words = line.words, words.count >= 2 {
                 let body = words.map { formatEnhancedWordTag($0.startTime) + $0.text }.joined()
@@ -181,7 +186,7 @@ enum LyricsParsing {
     private static func parseYrcJSONLine(_ line: String) -> LyricLine? {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let t = obj["t"] as? Double,
+              let t = jsonDouble(obj["t"]),
               let chunks = obj["c"] as? [[String: Any]] else { return nil }
 
         var words: [LyricWord] = []
@@ -191,12 +196,9 @@ enum LyricsParsing {
             guard !tx.isEmpty else { continue }
             var start = t / 1000
             var end: TimeInterval?
-            if let tr = chunk["tr"] as? [Double], tr.count >= 2 {
-                start = (t + tr[0]) / 1000
-                end = start + tr[1] / 1000
-            } else if let tr = chunk["tr"] as? [Int], tr.count >= 2 {
-                start = (t + Double(tr[0])) / 1000
-                end = start + Double(tr[1]) / 1000
+            if let (off, dur) = jsonDoublePair(chunk["tr"]) {
+                start = (t + off) / 1000
+                end = start + dur / 1000
             }
             words.append(LyricWord(text: tx, startTime: start, endTime: end))
             plain += tx
@@ -250,5 +252,22 @@ enum LyricsParsing {
 
     private static func optionalNonEmpty(_ lines: [LyricLine]) -> [LyricLine]? {
         lines.isEmpty ? nil : lines
+    }
+
+    /// JSONSerialization may box whole numbers as Int/NSNumber.
+    private static func jsonDouble(_ value: Any?) -> Double? {
+        switch value {
+        case let d as Double: return d
+        case let i as Int: return Double(i)
+        case let i as Int64: return Double(i)
+        case let n as NSNumber: return n.doubleValue
+        default: return nil
+        }
+    }
+
+    private static func jsonDoublePair(_ value: Any?) -> (Double, Double)? {
+        guard let arr = value as? [Any], arr.count >= 2,
+              let a = jsonDouble(arr[0]), let b = jsonDouble(arr[1]) else { return nil }
+        return (a, b)
     }
 }

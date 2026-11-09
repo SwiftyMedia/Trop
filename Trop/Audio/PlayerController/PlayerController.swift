@@ -228,8 +228,9 @@ extension PlayerController {
         if shouldFadeIn {
             crossfadeVolumeFactor = 0
             applyPlayerVolume()
-        } else if isNewSong {
-            // Manual / non-crossfade song changes restore full volume.
+        } else if isNewSong || pendingCrossfadeFadeIn || isCrossfading {
+            // Manual / non-crossfade song changes, and same-track reloads
+            // (e.g. repeat) that inherited a pending fade, restore full volume.
             cancelCrossfade()
         }
 

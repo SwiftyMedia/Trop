@@ -330,6 +330,8 @@ final class NowPlaying {
             Task { await EpisodePlaybackStore.shared.markPlayed(videoId: finishedId) }
         }
         if isRepeatOn {
+            // Do not crossfade into the same track — restore volume first.
+            PlayerController.shared.cancelCrossfade()
             repeatCurrent()
             return
         }
@@ -339,6 +341,7 @@ final class NowPlaying {
             autoplaySimilar(from: endedVideoId)
         } else {
             // End of queue, pause but keep the last song shown in the player.
+            PlayerController.shared.cancelCrossfade()
             isPlaying = false
             stopTimer()
             PlayerController.shared.updateNowPlayingProgress()
@@ -354,6 +357,7 @@ final class NowPlaying {
                 let radio = try await PersonalizationService.shared.fetchRadio(videoId: videoId)
                 let songs = radio.songs
                 guard !songs.isEmpty else {
+                    PlayerController.shared.cancelCrossfade()
                     isPlaying = false
                     return
                 }
@@ -366,6 +370,7 @@ final class NowPlaying {
                 self.persistQueueState()
             } catch {
                 Log.nowPlaying.error("Autoplay similar failed: \(error)")
+                PlayerController.shared.cancelCrossfade()
                 isPlaying = false
             }
         }

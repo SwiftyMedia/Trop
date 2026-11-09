@@ -200,7 +200,10 @@ final class NowPlaying {
     func playNext(automatic: Bool = false) {
         guard hasNext else { return }
         guard !isResolvingNext else { return }
-        if !automatic { lastManualSkipTime = Date() }
+        if !automatic {
+            lastManualSkipTime = Date()
+            SleepTimerController.shared.noteUserInteraction()
+        }
         queueIndex += 1
         playCurrentSong(logContext: "playNext")
     }
@@ -209,6 +212,7 @@ final class NowPlaying {
         guard hasPrevious else { return }
         guard !isResolvingNext else { return }
         lastManualSkipTime = Date()
+        SleepTimerController.shared.noteUserInteraction()
         queueIndex -= 1
         playCurrentSong(logContext: "playPrevious")
     }
@@ -222,6 +226,9 @@ final class NowPlaying {
         afterResolve: (() -> Void)? = nil
     ) {
         guard queueSongs.indices.contains(queueIndex) else { return }
+        // Cancel an in-progress sleep fade as soon as a new track is requested
+        // (next/prev/queue), before async resolve finishes.
+        SleepTimerController.shared.noteUserInteraction()
         if manageResolvingFlag {
             isResolvingNext = true
         }
@@ -323,6 +330,14 @@ final class NowPlaying {
         if let finishedId = videoId,
            duration >= 600 || musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" {
             Task { await EpisodePlaybackStore.shared.markPlayed(videoId: finishedId) }
+        }
+        // Sleep timer (end-of-track or mid-fade) wins over repeat / auto-advance.
+        if SleepTimerController.shared.handleTrackEnded() {
+            isPlaying = false
+            stopTimer()
+            PlayerController.shared.updateNowPlayingProgress()
+            Task { await PlaybackStateService.shared.stopTracking() }
+            return
         }
         if isRepeatOn {
             repeatCurrent()

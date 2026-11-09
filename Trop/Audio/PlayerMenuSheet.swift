@@ -28,9 +28,11 @@ struct PlayerMenuSheet: View {
     @State private var showPlaylistPicker = false
     @State private var showArtistPicker = false
     @State private var showRadioOptions = false
+    @State private var showSleepTimer = false
     @State private var showShareDialog = false
     @State private var isResolvingArtist = false
     @ObservedObject private var downloadManager = DownloadManager.shared
+    @Bindable private var sleepTimer = SleepTimerController.shared
 
     var body: some View {
         SheetChrome {
@@ -70,6 +72,12 @@ struct PlayerMenuSheet: View {
                         title: "Customize Radio",
                         subtitle: "Style, size & explicit filter"
                     ) { showRadioOptions = true }
+                    Divider()
+                    MenuRow(
+                        icon: "moon.zzz",
+                        title: "Sleep Timer",
+                        subtitle: sleepTimer.statusText
+                    ) { showSleepTimer = true }
                 }
             }
             .navigationDestination(for: Destination.self) { dest in
@@ -103,6 +111,9 @@ struct PlayerMenuSheet: View {
         }
         .sheet(isPresented: $showRadioOptions) {
             RadioOptionsSheet(song: song)
+        }
+        .sheet(isPresented: $showSleepTimer) {
+            SleepTimerSheet()
         }
         .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
             Button("Copy Link") {
@@ -147,6 +158,7 @@ struct PlayerMenuSheet: View {
                     get: { settings.playerVolume },
                     set: { newValue in
                         settings.playerVolume = newValue.clamped01
+                        SleepTimerController.shared.noteUserInteraction()
                         PlayerController.shared.applyPlayerVolume()
                     }
                 ),

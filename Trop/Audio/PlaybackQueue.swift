@@ -15,6 +15,7 @@ enum PlaybackQueue {
     /// Plays `songs[startIndex]` (clamped). Used by detail play-all / play-song.
     static func play(_ songs: [SongItem], startIndex: Int = 0, log: AppLogger, context: String) {
         guard !songs.isEmpty else { return }
+        SleepTimerController.shared.noteUserInteraction()
         let index = min(max(startIndex, 0), songs.count - 1)
         let first = songs[index]
         NowPlaying.shared.setQueue(songs, startIndex: index)
@@ -44,6 +45,7 @@ enum PlaybackQueue {
     static func startRadio(for song: SongItem, options: RadioOptions = .default) {
         let isCurrentSong = NowPlaying.shared.videoId == song.videoId
         if !isCurrentSong {
+            SleepTimerController.shared.noteUserInteraction()
             NowPlaying.shared.setQueue([song], startIndex: 0)
             Task { try? await PlaybackManager.shared.resolveAndPlay(videoId: song.videoId) }
         }
@@ -59,6 +61,7 @@ enum PlaybackQueue {
     /// Plays a single song, then continues with its radio queue when available.
     /// Used by Home/Search/Explore tap-to-play.
     static func playSingleWithRadio(_ song: SongItem, log: AppLogger) {
+        SleepTimerController.shared.noteUserInteraction()
         NowPlaying.shared.setQueue([song], startIndex: 0)
         Task { @MainActor in
             do {

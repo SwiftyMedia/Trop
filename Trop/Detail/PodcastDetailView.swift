@@ -590,7 +590,7 @@ struct PodcastDetailView: View {
                 if PlayerController.shared.currentVideoId == episode.videoId { break }
             }
             guard PlayerController.shared.currentVideoId == episode.videoId else { return }
-            PlayerController.shared.seek(to: resumeAt)
+            PlayerController.shared.seek(to: resumeAt, isUserAction: false)
         }
     }
 }

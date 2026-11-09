@@ -611,7 +611,9 @@ private struct LyricsLineView: View {
                     .font(.system(size: fontSize, weight: .medium))
                     .foregroundColor(Color.white.opacity(0.38))
             }
-            result += piece
+            // Text has no +=; concatenation is via +.
+            // swiftlint:disable:next shorthand_operator
+            result = result + piece
         }
         return result
     }

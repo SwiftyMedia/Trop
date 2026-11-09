@@ -611,7 +611,7 @@ private struct LyricsLineView: View {
                     .font(.system(size: fontSize, weight: .medium))
                     .foregroundColor(Color.white.opacity(0.38))
             }
-            result = result + piece
+            result += piece
         }
         return result
     }

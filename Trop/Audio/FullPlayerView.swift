@@ -26,9 +26,11 @@ struct FullPlayerView: View {
     @State private var showQueue = false
     @State private var pendingRoute: DetailRoute?
     @State private var showSongMenu = false
+    @State private var showSleepTimer = false
     @State private var artworkEntryOffset: CGFloat = 0
     @State private var currentLyrics: [LyricLine] = []
     @State private var canvasDominantColors: [Color]?
+    @Bindable private var sleepTimer = SleepTimerController.shared
 
     private var playerBackgroundColors: [Color] {
         canvasDominantColors ?? np.dominantColors
@@ -234,6 +236,9 @@ struct FullPlayerView: View {
                     PlayerMenuSheet(song: song, onCollapseRequest: { onCollapse() })
                 }
             }
+            .sheet(isPresented: $showSleepTimer) {
+                SleepTimerSheet()
+            }
             .background(
                 Color.clear
                     .detailRouteSheet(item: $pendingRoute)
@@ -321,6 +326,19 @@ struct FullPlayerView: View {
                 PlayerLikeButton(isLiked: isLiked) {
                     guard let song = np.queueSongs.indices.contains(np.queueIndex) ? np.queueSongs[np.queueIndex] : nil else { return }
                     Task { await likeStore.toggle(song: song) }
+                }
+
+                if sleepTimer.isActive {
+                    Button {
+                        showSleepTimer = true
+                    } label: {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                    }
+                    .accessibilityLabel("Sleep Timer")
+                    .accessibilityValue(sleepTimer.statusText)
                 }
 
                 if np.queueSongs.indices.contains(np.queueIndex) {

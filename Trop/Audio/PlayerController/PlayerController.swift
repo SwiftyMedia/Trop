@@ -237,6 +237,7 @@ extension PlayerController {
     }
 
     func seek(to time: TimeInterval) {
+        SleepTimerController.shared.noteUserInteraction()
         pendingSeek = (time, Date().addingTimeInterval(1.5))
         NowPlaying.shared.currentTime = time
         withMpv { mpv in
@@ -247,6 +248,7 @@ extension PlayerController {
     }
 
     func setPaused(_ paused: Bool) {
+        SleepTimerController.shared.noteUserInteraction()
         desiredPlaying = !paused
         let currentlyPaused = playState.value != .playing
         guard currentlyPaused != paused else {
@@ -269,6 +271,13 @@ extension PlayerController {
 
     func applyPlayerVolume() {
         let vol = SettingsStore.shared.playerVolume
+        setOutputVolume(vol)
+    }
+
+    /// Sets mpv output volume without changing the user's saved volume setting.
+    /// Used by the sleep timer fade-out.
+    func setOutputVolume(_ volume: Double) {
+        let vol = volume.clamped01
         withMpv { mpv in
             var val = Double(vol * 100)
             mpv_set_property(mpv, "volume", MPV_FORMAT_DOUBLE, &val)

@@ -83,6 +83,23 @@ final class PlayerController {
     var nowPlayingInfo = [String: Any]()
     private var pendingSeek: (target: TimeInterval, deadline: Date)?
 
+    // MARK: - Crossfade (volume ramp; single loadfile)
+    // True overlapping dual-decoder crossfade is impractical with the current
+    // single-`loadfile` architecture. Instead we fade volume out near EOF,
+    // advance to the next track early, then fade volume back in. User volume,
+    // normalization, and equalizer stay applied via `applyPlayerVolume` /
+    // `applyPlaybackSettings`.
+
+    /// Multiplier on `SettingsStore.playerVolume` during fade (0…1).
+    private var crossfadeVolumeFactor: Double = 1
+    private var crossfadeTask: Task<Void, Never>?
+    /// True while a fade-out→advance→fade-in cycle is in progress.
+    private var isCrossfading = false
+    /// Set when crossfade already advanced the queue so EOF must not double-skip.
+    private var crossfadeDidAdvance = false
+    /// Fade-in remaining after the next track loads.
+    private var pendingCrossfadeFadeIn = false
+
     var currentTime: TimeInterval {
         withMpv { mpv in
             var val = Double(0)
@@ -181,6 +198,7 @@ extension PlayerController {
 
         let prevVideoId = currentVideoId
         let isNewSong = prevVideoId != nil && videoId != prevVideoId
+        let shouldFadeIn = pendingCrossfadeFadeIn && isNewSong
 
         desiredPlaying = true
         assertAudioSession()
@@ -207,6 +225,15 @@ extension PlayerController {
         applyPlaybackSettings()
         setVideoCrop(.none)
 
+        if shouldFadeIn {
+            crossfadeVolumeFactor = 0
+            applyPlayerVolume()
+        } else if isNewSong || pendingCrossfadeFadeIn || isCrossfading {
+            // Manual / non-crossfade song changes, and same-track reloads
+            // (e.g. repeat) that inherited a pending fade, restore full volume.
+            cancelCrossfade()
+        }
+
         pendingVideoId = videoId
         let loadStart = skipStart > 0 ? Int(skipStart.rounded(.up)) : 0
         let loadArguments = loadStart > 0
@@ -223,6 +250,7 @@ extension PlayerController {
         if cmdResult != 0 {
             Log.player.error("mpv_command loadfile failed result=\(cmdResult)")
             pendingVideoId = nil
+            cancelCrossfade()
             return
         }
         if isNewSong {
@@ -234,9 +262,15 @@ extension PlayerController {
         NowPlaying.shared.currentTime = 0
         NowPlaying.shared.duration = max(0, duration ?? 0)
         setNowPlayingMetadata()
+        if shouldFadeIn {
+            startCrossfadeIn()
+        }
     }
 
     func seek(to time: TimeInterval) {
+        if isCrossfading || pendingCrossfadeFadeIn {
+            cancelCrossfade()
+        }
         pendingSeek = (time, Date().addingTimeInterval(1.5))
         NowPlaying.shared.currentTime = time
         withMpv { mpv in
@@ -253,6 +287,9 @@ extension PlayerController {
             updateNowPlayingProgress()
             return
         }
+        if paused, isCrossfading || pendingCrossfadeFadeIn {
+            cancelCrossfade()
+        }
         withMpv { mpv in
             var flag: Int32 = paused ? 1 : 0
             mpv_set_property(mpv, "pause", MPV_FORMAT_FLAG, &flag)
@@ -268,10 +305,123 @@ extension PlayerController {
     }
 
     func applyPlayerVolume() {
-        let vol = SettingsStore.shared.playerVolume
+        let vol = SettingsStore.shared.playerVolume * crossfadeVolumeFactor
         withMpv { mpv in
             var val = Double(vol * 100)
             mpv_set_property(mpv, "volume", MPV_FORMAT_DOUBLE, &val)
+        }
+    }
+
+    /// Cancels any in-flight crossfade and restores full volume.
+    func cancelCrossfade(restoreVolume: Bool = true) {
+        crossfadeTask?.cancel()
+        crossfadeTask = nil
+        isCrossfading = false
+        pendingCrossfadeFadeIn = false
+        crossfadeDidAdvance = false
+        if restoreVolume {
+            crossfadeVolumeFactor = 1
+            applyPlayerVolume()
+        }
+    }
+
+    /// Called from the NowPlaying progress timer. Starts a volume crossfade
+    /// when remaining time drops below the configured duration.
+    func tickCrossfadeIfNeeded() {
+        let settings = SettingsStore.shared
+        guard settings.autoCrossfade else {
+            if isCrossfading || crossfadeVolumeFactor < 1 {
+                cancelCrossfade()
+            }
+            return
+        }
+        guard !isCrossfading, !pendingCrossfadeFadeIn else { return }
+        guard playState.value == .playing else { return }
+
+        let np = NowPlaying.shared
+        // Repeat-one and end-of-queue (without autoplay) have nothing to fade into.
+        guard !np.isRepeatOn else { return }
+        let canAdvance = np.hasNext || settings.autoplaySimilar
+        guard canAdvance else { return }
+
+        let dur = duration
+        let pos = currentTime
+        guard dur > 0, pos > 0 else { return }
+
+        let fadeSeconds = min(12, max(1, settings.crossfadeDurationSeconds))
+        // Need enough headroom so we are not always fading short tracks.
+        guard dur > fadeSeconds * 2.5 else { return }
+
+        let remaining = dur - pos
+        guard remaining <= fadeSeconds, remaining > 0.05 else { return }
+
+        startCrossfadeOut(over: remaining, configured: fadeSeconds)
+    }
+
+    private func startCrossfadeOut(over remaining: TimeInterval, configured: TimeInterval) {
+        isCrossfading = true
+        crossfadeDidAdvance = false
+        crossfadeTask?.cancel()
+        let fadeOut = min(remaining, configured)
+        Log.player.info("CROSSFADE out over \(fadeOut)s (remaining=\(remaining))")
+
+        crossfadeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let steps = max(8, Int(fadeOut * 25))
+            let stepNanos = UInt64((fadeOut / Double(steps)) * 1_000_000_000)
+            for i in 0...steps {
+                guard !Task.isCancelled else { return }
+                // Abort if the user seeked out of the fade window.
+                let rem = self.duration - self.currentTime
+                if rem > configured + 0.75 {
+                    self.cancelCrossfade()
+                    return
+                }
+                self.crossfadeVolumeFactor = max(0, 1 - Double(i) / Double(steps))
+                self.applyPlayerVolume()
+                if i < steps {
+                    try? await Task.sleep(nanoseconds: stepNanos)
+                }
+            }
+            guard !Task.isCancelled else { return }
+
+            self.crossfadeVolumeFactor = 0
+            self.applyPlayerVolume()
+            self.pendingCrossfadeFadeIn = true
+            self.crossfadeDidAdvance = true
+
+            let videoId = self.currentVideoId
+            Log.player.info("CROSSFADE advance videoId=\(videoId ?? "nil")")
+            NowPlaying.shared.stopped(videoId: videoId, isEof: true)
+        }
+    }
+
+    private func startCrossfadeIn() {
+        let settings = SettingsStore.shared
+        let fadeIn = min(12, max(1, settings.crossfadeDurationSeconds)) * 0.55
+        crossfadeVolumeFactor = 0
+        applyPlayerVolume()
+        crossfadeTask?.cancel()
+        Log.player.info("CROSSFADE in over \(fadeIn)s")
+
+        crossfadeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let steps = max(8, Int(fadeIn * 25))
+            let stepNanos = UInt64((fadeIn / Double(steps)) * 1_000_000_000)
+            for i in 0...steps {
+                guard !Task.isCancelled else { return }
+                self.crossfadeVolumeFactor = min(1, Double(i) / Double(steps))
+                self.applyPlayerVolume()
+                if i < steps {
+                    try? await Task.sleep(nanoseconds: stepNanos)
+                }
+            }
+            guard !Task.isCancelled else { return }
+            self.crossfadeVolumeFactor = 1
+            self.applyPlayerVolume()
+            self.isCrossfading = false
+            self.pendingCrossfadeFadeIn = false
+            self.crossfadeDidAdvance = false
         }
     }
 
@@ -562,9 +712,16 @@ extension PlayerController {
                 Task { await PlaybackStateService.shared.stopTracking() }
             }
             if isEof {
+                // Crossfade already advanced the queue — ignore the trailing EOF.
+                if self.crossfadeDidAdvance {
+                    Log.player.debug("END_FILE EOF ignored — crossfade already advanced")
+                    self.crossfadeDidAdvance = false
+                    return
+                }
                 self.playState.send(.stopped)
                 NowPlaying.shared.stopped(videoId: videoId, isEof: true)
             } else if isError {
+                self.cancelCrossfade()
                 self.currentVideoId = nil
                 self.playState.send(.stopped)
                 NowPlaying.shared.stopped(videoId: videoId, isEof: false)

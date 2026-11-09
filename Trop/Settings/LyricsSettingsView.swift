@@ -44,6 +44,14 @@ struct LyricsSettingsView: View {
                     Label("Provider Order", systemImage: "list.number")
                 }
             }
+
+            Section {
+                SettingsToggleRow("Word-by-Word Lyrics", icon: "textformat.abc", isOn: $settings.wordByWordLyrics)
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Highlights the current word during playback when timings are available. Falls back to line highlighting otherwise.")
+            }
         }
         .navigationTitle("Lyrics")
         .navigationBarTitleDisplayMode(.inline)

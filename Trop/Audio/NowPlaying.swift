@@ -200,7 +200,10 @@ final class NowPlaying {
     func playNext(automatic: Bool = false) {
         guard hasNext else { return }
         guard !isResolvingNext else { return }
-        if !automatic { lastManualSkipTime = Date() }
+        if !automatic {
+            lastManualSkipTime = Date()
+            PlayerController.shared.cancelCrossfade()
+        }
         queueIndex += 1
         playCurrentSong(logContext: "playNext")
     }
@@ -209,6 +212,7 @@ final class NowPlaying {
         guard hasPrevious else { return }
         guard !isResolvingNext else { return }
         lastManualSkipTime = Date()
+        PlayerController.shared.cancelCrossfade()
         queueIndex -= 1
         playCurrentSong(logContext: "playPrevious")
     }
@@ -233,6 +237,7 @@ final class NowPlaying {
                 try await PlaybackManager.shared.resolveAndPlay(videoId: song.videoId)
             } catch {
                 Log.nowPlaying.error("\(logContext) failed: \(error)")
+                PlayerController.shared.cancelCrossfade()
                 if self.videoId == song.videoId {
                     isPlaying = false
                 }
@@ -325,6 +330,8 @@ final class NowPlaying {
             Task { await EpisodePlaybackStore.shared.markPlayed(videoId: finishedId) }
         }
         if isRepeatOn {
+            // Do not crossfade into the same track — restore volume first.
+            PlayerController.shared.cancelCrossfade()
             repeatCurrent()
             return
         }
@@ -334,6 +341,7 @@ final class NowPlaying {
             autoplaySimilar(from: endedVideoId)
         } else {
             // End of queue, pause but keep the last song shown in the player.
+            PlayerController.shared.cancelCrossfade()
             isPlaying = false
             stopTimer()
             PlayerController.shared.updateNowPlayingProgress()
@@ -349,6 +357,7 @@ final class NowPlaying {
                 let radio = try await PersonalizationService.shared.fetchRadio(videoId: videoId)
                 let songs = radio.songs
                 guard !songs.isEmpty else {
+                    PlayerController.shared.cancelCrossfade()
                     isPlaying = false
                     return
                 }
@@ -361,6 +370,7 @@ final class NowPlaying {
                 self.persistQueueState()
             } catch {
                 Log.nowPlaying.error("Autoplay similar failed: \(error)")
+                PlayerController.shared.cancelCrossfade()
                 isPlaying = false
             }
         }
@@ -560,6 +570,7 @@ final class NowPlaying {
         currentTime = PlayerController.shared.currentTime
         duration = PlayerController.shared.duration
         PlayerController.shared.updateNowPlayingProgress()
+        PlayerController.shared.tickCrossfadeIfNeeded()
         SponsorBlockIntegration.shared.tick()
         if let videoId, duration >= 600 || musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" {
             let vid = videoId

@@ -7,10 +7,30 @@
 
 import Foundation
 
+/// Per-word timing for karaoke-style highlighting. Absent when only line sync is available.
+struct LyricWord: Equatable, Sendable, Hashable {
+    let text: String
+    let startTime: TimeInterval
+    let endTime: TimeInterval?
+}
+
 struct LyricLine: Identifiable, Equatable, Sendable {
     let id = UUID()
     let text: String
     let startTime: TimeInterval?
+    /// Real word/syllable timings from the provider when available (richsync, yrc, enhanced LRC).
+    let words: [LyricWord]?
+
+    init(text: String, startTime: TimeInterval?, words: [LyricWord]? = nil) {
+        self.text = text
+        self.startTime = startTime
+        self.words = words
+    }
+
+    var hasWordTimings: Bool {
+        guard let words, words.count >= 2 else { return false }
+        return true
+    }
 
     static let placeholder = LyricLine(text: "♪", startTime: nil)
 }

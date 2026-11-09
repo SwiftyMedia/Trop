@@ -28,8 +28,21 @@ struct PlayerSettingsView: View {
                 SettingsPickerRow("Audio Quality", icon: "waveform", selection: $settings.audioQuality)
                 SettingsToggleRow("Audio Normalization", icon: "speaker.wave.2", isOn: $settings.audioNormalization)
                 SettingsToggleRow("Gapless Playback", icon: "arrow.right.arrow.left", isOn: $settings.gaplessPlayback)
+                SettingsToggleRow("Auto Crossfade", icon: "arrow.triangle.swap", isOn: $settings.autoCrossfade)
+                if settings.autoCrossfade {
+                    SettingsStepperRow(
+                        "Crossfade Duration",
+                        icon: "timer",
+                        value: $settings.crossfadeDurationSeconds,
+                        in: 1...12,
+                        step: 1,
+                        format: { "\(Int($0))s" }
+                    )
+                }
             } header: {
                 Text("Audio")
+            } footer: {
+                Text("Auto Crossfade fades out the current track and fades in the next near the end. When enabled it drives track transitions; Gapless still applies when crossfade is off.")
             }
 
             Section {

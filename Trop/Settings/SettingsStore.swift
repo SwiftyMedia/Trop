@@ -190,6 +190,11 @@ final class SettingsStore {
         didSet { Self.defaults.set(romanizeCurrentTrack, forKey: Keys.romanizeCurrentTrack) }
     }
 
+    /// Karaoke-style word highlighting when providers supply per-word timings.
+    var wordByWordLyrics: Bool {
+        didSet { Self.defaults.set(wordByWordLyrics, forKey: Keys.wordByWordLyrics) }
+    }
+
     // MARK: - Playback
 
     var equalizerEnabled: Bool {
@@ -216,6 +221,16 @@ final class SettingsStore {
 
     var gaplessPlayback: Bool {
         didSet { Self.defaults.set(gaplessPlayback, forKey: Keys.gaplessPlayback) }
+    }
+
+    /// Volume-ramp crossfade into the next track near EOF (single-decoder).
+    var autoCrossfade: Bool {
+        didSet { Self.defaults.set(autoCrossfade, forKey: Keys.autoCrossfade) }
+    }
+
+    /// Crossfade length in seconds when `autoCrossfade` is on.
+    var crossfadeDurationSeconds: Double {
+        didSet { Self.defaults.set(crossfadeDurationSeconds, forKey: Keys.crossfadeDurationSeconds) }
     }
 
     var autoplaySimilar: Bool {
@@ -345,12 +360,15 @@ final class SettingsStore {
         static let lyricsOffsetSeconds = "settings.lyricsOffsetSeconds"
         static let showIntervalIndicator = "settings.showIntervalIndicator"
         static let romanizeCurrentTrack = "settings.romanizeCurrentTrack"
+        static let wordByWordLyrics = "settings.wordByWordLyrics"
         static let equalizerEnabled = "settings.equalizerEnabled"
         static let equalizerPresetID = "settings.equalizerPresetID"
         static let equalizerGains = "settings.equalizerGains"
         static let audioQuality = "settings.audioQuality"
         static let audioNormalization = "settings.audioNormalization"
         static let gaplessPlayback = "settings.gaplessPlayback"
+        static let autoCrossfade = "settings.autoCrossfade"
+        static let crossfadeDurationSeconds = "settings.crossfadeDurationSeconds"
         static let autoplaySimilar = "settings.autoplaySimilar"
         static let persistQueue = "settings.persistQueue"
         static let lastRadioStyle = "settings.lastRadioStyle"
@@ -408,6 +426,7 @@ final class SettingsStore {
         lyricsOffsetSeconds = Self.load(Keys.lyricsOffsetSeconds, default: 0)
         showIntervalIndicator = Self.load(Keys.showIntervalIndicator, default: true)
         romanizeCurrentTrack = Self.load(Keys.romanizeCurrentTrack, default: true)
+        wordByWordLyrics = Self.load(Keys.wordByWordLyrics, default: true)
         equalizerEnabled = Self.load(Keys.equalizerEnabled, default: false)
         equalizerPresetID = Self.loadString(Keys.equalizerPresetID, default: "flat")
         if let saved = d.array(forKey: Keys.equalizerGains) as? [Double], saved.count == equalizerFrequencies.count {
@@ -418,6 +437,8 @@ final class SettingsStore {
         audioQuality = Self.loadEnum(Keys.audioQuality, default: .auto)
         audioNormalization = Self.load(Keys.audioNormalization, default: false)
         gaplessPlayback = Self.load(Keys.gaplessPlayback, default: true)
+        autoCrossfade = Self.load(Keys.autoCrossfade, default: false)
+        crossfadeDurationSeconds = Self.load(Keys.crossfadeDurationSeconds, default: 6)
         autoplaySimilar = Self.load(Keys.autoplaySimilar, default: true)
         persistQueue = Self.load(Keys.persistQueue, default: false)
         lastRadioStyle = Self.loadEnum(Keys.lastRadioStyle, default: .similar)

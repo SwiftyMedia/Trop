@@ -63,6 +63,28 @@ struct LyricsMenuSheet: View {
                         .tint(settings.accentColor)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
+
+                        Divider()
+
+                        Toggle(isOn: $settings.wordByWordLyrics) {
+                            HStack(spacing: 14) {
+                                Image(systemName: "textformat.abc")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(settings.accentColor)
+                                    .frame(width: 26)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Word-by-Word Lyrics")
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                    Text("Highlights each word when timings are available")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .tint(settings.accentColor)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                 }
             }
             .navigationTitle("Lyrics")

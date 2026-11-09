@@ -233,6 +233,9 @@ struct LyricsView<ProgressSlider: View>: View {
         let gap = instrumentalGaps.last(where: { $0.afterIndex == index })
         let showRing = settings.showIntervalIndicator && gap != nil && isVisibleInGap(gap!)
         let romanized = romanization(for: index)
+        let useWordHighlight = settings.wordByWordLyrics
+            && index == activeIndex
+            && line.hasWordTimings
 
         return VStack(spacing: 0) {
             LyricsLineView(
@@ -243,6 +246,8 @@ struct LyricsView<ProgressSlider: View>: View {
                 lineOpacity: index == activeIndex ? 1 : opacityForDistance(abs(index - activeIndex)),
                 lineScale: index == activeIndex ? 1 : scaleForDistance(abs(index - activeIndex)),
                 romanizedText: romanized,
+                words: useWordHighlight ? line.words : nil,
+                playbackTime: displayTime + settings.lyricsOffsetSeconds,
                 onTap: {
                     if let t = line.startTime {
                         player.seek(to: t)
@@ -536,17 +541,38 @@ private struct LyricsLineView: View {
     var lineScale: CGFloat = 1
     /// Romanized variant rendered under the main line, Metrolist-style.
     var romanizedText: String?
+    /// When set with playbackTime, renders karaoke-style word highlighting.
+    var words: [LyricWord]? = nil
+    var playbackTime: TimeInterval = 0
     let onTap: () -> Void
+
+    private var activeWordIndex: Int? {
+        guard let words, !words.isEmpty else { return nil }
+        var idx = 0
+        for (i, word) in words.enumerated() {
+            if word.startTime <= playbackTime {
+                idx = i
+            } else {
+                break
+            }
+        }
+        return idx
+    }
 
     var body: some View {
         let textToDisplay = text.isEmpty ? "\u{266A}" : text
 
         Button(action: onTap) {
             VStack(alignment: alignment.textAlignment.horizontal, spacing: 4) {
-                Text(textToDisplay)
-                    .font(.system(size: fontSize, weight: isActive ? .bold : .semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(alignment.multilineTextAlignment)
+                if let words, isActive, words.count >= 2 {
+                    wordHighlightText(words: words)
+                        .multilineTextAlignment(alignment.multilineTextAlignment)
+                } else {
+                    Text(textToDisplay)
+                        .font(.system(size: fontSize, weight: isActive ? .bold : .semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(alignment.multilineTextAlignment)
+                }
 
                 if let romanizedText, !romanizedText.isEmpty {
                     Text(romanizedText)
@@ -563,5 +589,30 @@ private struct LyricsLineView: View {
         .opacity(lineOpacity)
         .scaleEffect(lineScale, anchor: alignment.textAlignment == .leading ? .leading : alignment.textAlignment == .trailing ? .trailing : .center)
         .animation(.easeInOut(duration: 0.3), value: isActive)
+        .animation(.easeInOut(duration: 0.12), value: activeWordIndex)
+    }
+
+    /// Karaoke highlight: current word bright/bold, past slightly softer, upcoming dim.
+    private func wordHighlightText(words: [LyricWord]) -> Text {
+        let current = activeWordIndex ?? 0
+        var result = Text("")
+        for (i, word) in words.enumerated() {
+            let piece: Text
+            if i == current {
+                piece = Text(word.text)
+                    .font(.system(size: fontSize, weight: .bold))
+                    .foregroundColor(.white)
+            } else if i < current {
+                piece = Text(word.text)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.78))
+            } else {
+                piece = Text(word.text)
+                    .font(.system(size: fontSize, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.38))
+            }
+            result = result + piece
+        }
+        return result
     }
 }

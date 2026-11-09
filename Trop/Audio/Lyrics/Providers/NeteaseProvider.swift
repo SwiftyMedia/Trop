@@ -90,7 +90,15 @@ struct NeteaseProvider: LyricsProvider {
 
         let json = try await LyricsHTTP.getJSON(URLRequest(url: url))
 
-        // Synced lyrics (LRC) take priority
+        // Word-timed YRC when the API provides it
+        if let yrc = json["yrc"] as? [String: Any],
+           let lyric = yrc["lyric"] as? String,
+           !lyric.isEmpty {
+            let lines = LyricsParsing.parseYrc(lyric)
+            if !lines.isEmpty { return lines }
+        }
+
+        // Line-synced LRC fallback
         if let lrc = json["lrc"] as? [String: Any],
            let lyric = lrc["lyric"] as? String,
            !lyric.isEmpty {
@@ -98,7 +106,7 @@ struct NeteaseProvider: LyricsProvider {
             if !lines.isEmpty { return lines }
         }
 
-        // Plain lyrics fallback
+        // Translated / plain lyrics fallback
         if let tlyric = json["tlyric"] as? [String: Any],
            let lyric = tlyric["lyric"] as? String,
            !lyric.isEmpty {

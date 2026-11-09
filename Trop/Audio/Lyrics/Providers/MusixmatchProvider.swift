@@ -96,7 +96,12 @@ struct MusixmatchProvider: LyricsProvider {
             throw LyricsError.notFound
         }
 
-        // Synced
+        // Word-synced richsync (preferred when namespace=lyrics_richsynched)
+        if let richLines = parseRichsync(from: macro), !richLines.isEmpty {
+            return richLines
+        }
+
+        // Line-synced subtitles
         if let subsCall = macro["track.subtitles.get"] as? [String: Any],
            let sMessage = subsCall["message"] as? [String: Any],
            let sBody = sMessage["body"] as? [String: Any],
@@ -126,6 +131,52 @@ struct MusixmatchProvider: LyricsProvider {
         }
 
         throw LyricsError.notFound
+    }
+
+    /// Parses `track.richsync.get` — each line has `ts`/`te` and word chunks
+    /// `{c, o}` where absolute word time = `ts + o`.
+    private func parseRichsync(from macro: [String: Any]) -> [LyricLine]? {
+        guard let richCall = macro["track.richsync.get"] as? [String: Any],
+              let rMessage = richCall["message"] as? [String: Any],
+              let rHeader = rMessage["header"] as? [String: Any],
+              (rHeader["status_code"] as? Int) == 200,
+              let rBody = rMessage["body"] as? [String: Any],
+              let richsync = rBody["richsync"] as? [String: Any],
+              let bodyStr = richsync["richsync_body"] as? String,
+              let data = bodyStr.data(using: .utf8),
+              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return nil }
+
+        let lines: [LyricLine] = arr.compactMap { item in
+            let ts = item["ts"] as? Double ?? 0
+            let te = item["te"] as? Double
+            let lineText = (item["x"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let chunks = item["l"] as? [[String: Any]] ?? []
+
+            var words: [LyricWord] = []
+            for (index, chunk) in chunks.enumerated() {
+                let c = chunk["c"] as? String ?? ""
+                // Skip empty chunks; keep whitespace-only chunks so spacing stays correct.
+                guard !c.isEmpty else { continue }
+                let offset = chunk["o"] as? Double ?? 0
+                let start = ts + offset
+                let end: TimeInterval?
+                if index + 1 < chunks.count,
+                   let nextOffset = chunks[index + 1]["o"] as? Double {
+                    end = ts + nextOffset
+                } else {
+                    end = te
+                }
+                words.append(LyricWord(text: c, startTime: start, endTime: end))
+            }
+
+            let plain = lineText.isEmpty ? words.map(\.text).joined() : lineText
+            guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            let wordList = words.count >= 2 ? words : nil
+            return LyricLine(text: plain, startTime: ts > 0 ? ts : nil, words: wordList)
+        }
+        return lines.isEmpty ? nil : lines
     }
 
     // MARK: - Headers

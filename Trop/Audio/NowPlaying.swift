@@ -200,7 +200,10 @@ final class NowPlaying {
     func playNext(automatic: Bool = false) {
         guard hasNext else { return }
         guard !isResolvingNext else { return }
-        if !automatic { lastManualSkipTime = Date() }
+        if !automatic {
+            lastManualSkipTime = Date()
+            PlayerController.shared.cancelCrossfade()
+        }
         queueIndex += 1
         playCurrentSong(logContext: "playNext")
     }
@@ -209,6 +212,7 @@ final class NowPlaying {
         guard hasPrevious else { return }
         guard !isResolvingNext else { return }
         lastManualSkipTime = Date()
+        PlayerController.shared.cancelCrossfade()
         queueIndex -= 1
         playCurrentSong(logContext: "playPrevious")
     }
@@ -233,6 +237,7 @@ final class NowPlaying {
                 try await PlaybackManager.shared.resolveAndPlay(videoId: song.videoId)
             } catch {
                 Log.nowPlaying.error("\(logContext) failed: \(error)")
+                PlayerController.shared.cancelCrossfade()
                 if self.videoId == song.videoId {
                     isPlaying = false
                 }
@@ -560,6 +565,7 @@ final class NowPlaying {
         currentTime = PlayerController.shared.currentTime
         duration = PlayerController.shared.duration
         PlayerController.shared.updateNowPlayingProgress()
+        PlayerController.shared.tickCrossfadeIfNeeded()
         SponsorBlockIntegration.shared.tick()
         if let videoId, duration >= 600 || musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" {
             let vid = videoId

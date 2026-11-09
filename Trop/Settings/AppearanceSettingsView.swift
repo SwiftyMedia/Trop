@@ -66,8 +66,11 @@ struct AppearanceSettingsView: View {
                         Text(": \(Int(settings.lyricsFontSize))")
                     }
                 }
+                SettingsToggleRow("Word-by-Word Lyrics", icon: "textformat.abc", isOn: $settings.wordByWordLyrics)
             } header: {
                 Text("Lyrics")
+            } footer: {
+                Text("Word-by-Word Lyrics highlights the current word during playback when the provider supplies timings.")
             }
 
             Section {

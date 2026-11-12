@@ -112,7 +112,11 @@ struct PlayerMenuSheet: View {
             RadioOptionsSheet(song: song)
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet(videoId: song.videoId, songTitle: song.title)
+            CommentsSheet(
+                videoId: song.videoId,
+                songTitle: song.title,
+                onNavigate: { navigate($0) }
+            )
         }
         .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
             Button("Copy Link") {

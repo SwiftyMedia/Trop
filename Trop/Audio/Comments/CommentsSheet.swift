@@ -15,6 +15,9 @@ struct CommentsSheet: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.settingsStore) private var settings
     @State private var model = CommentsViewModel()
+    @State private var accountState = AccountSheetState.shared
+
+    var onNavigate: ((DetailRoute) -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -23,10 +26,6 @@ struct CommentsSheet: View {
                     .padding(.horizontal, DesignTokens.screenHPadding)
                     .padding(.top, 8)
                     .padding(.bottom, 10)
-
-                guidelinesBanner
-                    .padding(.horizontal, DesignTokens.screenHPadding)
-                    .padding(.bottom, 12)
 
                 content
             }
@@ -38,10 +37,7 @@ struct CommentsSheet: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.secondary)
-                            .font(.title2)
+                        Image(systemName: "xmark")
                     }
                     .accessibilityLabel("Close")
                 }
@@ -55,6 +51,12 @@ struct CommentsSheet: View {
         .appSheetChrome([.medium, .large])
         .task(id: videoId) {
             await model.load(videoId: videoId)
+        }
+        .task {
+            // Populate the composer avatar if the account photo isn't loaded yet.
+            if accountState.accountImageUrl == nil {
+                await accountState.fetchAccountInfo()
+            }
         }
     }
 
@@ -80,9 +82,9 @@ struct CommentsSheet: View {
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(selected ? Color.primary : Color(.secondarySystemBackground))
+                                .fill(selected ? settings.accentColor : Color(.secondarySystemBackground))
                         )
-                        .foregroundStyle(selected ? Color(.systemBackground) : Color.primary)
+                        .foregroundStyle(selected ? Color.white : Color.primary)
                 }
                 .buttonStyle(.plain)
                 .disabled(model.status == .loading || !model.canSwitch(to: sort))
@@ -91,33 +93,15 @@ struct CommentsSheet: View {
         }
     }
 
-    private var guidelinesBanner: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "hand.raised.fill")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
-            Text("Remember to keep comments respectful and follow community guidelines.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-    }
-
     private var composerBar: some View {
         Button {
             openOnYouTube()
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.secondary)
+                CachedAvatarView(
+                    url: accountState.accountImageUrl.flatMap(URL.init(string:)),
+                    size: 28
+                )
                 Text("Add a comment…")
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -184,7 +168,8 @@ struct CommentsSheet: View {
                     },
                     onLoadMoreReplies: {
                         Task { await model.loadMoreReplies(for: comment) }
-                    }
+                    },
+                    onAuthorTap: { openAuthor($0) }
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowSeparator(.hidden)
@@ -239,6 +224,31 @@ struct CommentsSheet: View {
         guard let url = URL(string: "https://www.youtube.com/watch?v=\(videoId)") else { return }
         openURL(url)
     }
+
+    private func openAuthor(_ author: CommentAuthor) {
+        guard let channelURL = author.channelURL.flatMap(URL.init(string:)) else { return }
+        let prefix = "/channel/"
+        let path = channelURL.path
+        guard path.hasPrefix(prefix) else {
+            openURL(channelURL)
+            return
+        }
+        let browseId = String(path.dropFirst(prefix.count))
+        guard !browseId.isEmpty else {
+            openURL(channelURL)
+            return
+        }
+        let route = DetailRoute.artist(browseId: browseId)
+        guard let onNavigate else {
+            dismiss()
+            AppRouter.shared.open(route)
+            return
+        }
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            onNavigate(route)
+        }
+    }
 }
 
 // MARK: - Row
@@ -251,6 +261,7 @@ private struct CommentRowView: View {
     let canLoadMoreReplies: Bool
     let onToggleReplies: () -> Void
     let onLoadMoreReplies: () -> Void
+    let onAuthorTap: (CommentAuthor) -> Void
 
     @State private var expanded = false
 
@@ -260,16 +271,26 @@ private struct CommentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            CachedAvatarView(
-                url: comment.author.avatarURL.flatMap(URL.init(string:)),
-                size: 36
-            )
+            Button {
+                onAuthorTap(comment.author)
+            } label: {
+                CachedAvatarView(
+                    url: comment.author.avatarURL.flatMap(URL.init(string:)),
+                    size: 36
+                )
+            }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text(comment.author.name)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    Button {
+                        onAuthorTap(comment.author)
+                    } label: {
+                        Text(comment.author.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
                     if comment.author.isVerified || comment.author.isArtist {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.caption2)
@@ -358,7 +379,7 @@ private struct CommentRowView: View {
         case .expanded, .loadingMore:
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(replies) { reply in
-                    CommentReplyRow(comment: reply, accent: accent)
+                    CommentReplyRow(comment: reply, accent: accent, onAuthorTap: onAuthorTap)
                 }
                 if repliesStatus == .loadingMore {
                     ProgressView()
@@ -383,6 +404,7 @@ private struct CommentRowView: View {
 private struct CommentReplyRow: View {
     let comment: CommentItem
     let accent: Color
+    let onAuthorTap: (CommentAuthor) -> Void
     @State private var expanded = false
 
     private var bodyText: String {
@@ -391,15 +413,25 @@ private struct CommentReplyRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            CachedAvatarView(
-                url: comment.author.avatarURL.flatMap(URL.init(string:)),
-                size: 28
-            )
+            Button {
+                onAuthorTap(comment.author)
+            } label: {
+                CachedAvatarView(
+                    url: comment.author.avatarURL.flatMap(URL.init(string:)),
+                    size: 28
+                )
+            }
+            .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(comment.author.name)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
+                    Button {
+                        onAuthorTap(comment.author)
+                    } label: {
+                        Text(comment.author.name)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
                     if !comment.publishedTime.isEmpty {
                         Text(comment.publishedTime)
                             .font(.caption2)

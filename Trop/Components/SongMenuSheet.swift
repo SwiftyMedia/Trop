@@ -139,7 +139,19 @@ struct SongMenuSheet: View {
             RadioOptionsSheet(song: song)
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet(videoId: song.videoId, songTitle: song.title)
+            CommentsSheet(
+                videoId: song.videoId,
+                songTitle: song.title,
+                onNavigate: { route in
+                    if onNavigate != nil {
+                        navigate(route)
+                    } else {
+                        // No parent chain to forward to — close and push directly.
+                        dismiss()
+                        AppRouter.shared.open(route)
+                    }
+                }
+            )
         }
         .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
             Button("Copy Link") {

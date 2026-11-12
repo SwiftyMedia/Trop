@@ -56,7 +56,7 @@ final class AlbumDetailViewModel {
         isSaved = !currentlySaved
         do {
             if currentlySaved {
-                try await SyncBridge.mutations.unsaveAlbum(browseId: browseId)
+                try await SyncBridge.mutations.unsaveAlbum(browseId: browseId, playlistId: album.playlistId)
             } else {
                 try await SyncBridge.mutations.saveAlbum(
                     browseId: browseId,

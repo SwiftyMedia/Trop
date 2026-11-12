@@ -25,7 +25,9 @@ extension TropLibraryStore {
                     """, arguments: [item.browseId, item.name, item.thumbnailUrl,
                                      Date(), false, item.channelId])
             }
-            if !remoteIds.isEmpty {
+            if remoteIds.isEmpty {
+                try db.execute(sql: "UPDATE artist SET bookmarked_at = NULL WHERE bookmarked_at IS NOT NULL")
+            } else {
                 let placeholders = DatabaseService.placeholders(count: remoteIds.count)
                 try db.execute(
                     sql: "UPDATE artist SET bookmarked_at = NULL WHERE bookmarked_at IS NOT NULL AND id NOT IN (\(placeholders))",
@@ -86,7 +88,9 @@ extension TropLibraryStore {
                 )
                 try entity.save(db)
             }
-            if !remoteIds.isEmpty {
+            if remoteIds.isEmpty {
+                try db.execute(sql: "UPDATE album SET bookmarked_at = NULL WHERE bookmarked_at IS NOT NULL")
+            } else {
                 let placeholders = DatabaseService.placeholders(count: remoteIds.count)
                 try db.execute(
                     sql: "UPDATE album SET bookmarked_at = NULL WHERE bookmarked_at IS NOT NULL AND id NOT IN (\(placeholders))",
@@ -110,7 +114,9 @@ extension TropLibraryStore {
                 )
                 try entity.save(db)
             }
-            if !remoteIds.isEmpty {
+            if remoteIds.isEmpty {
+                try db.execute(sql: "UPDATE podcast SET subscribed_at = NULL WHERE subscribed_at IS NOT NULL")
+            } else {
                 let placeholders = DatabaseService.placeholders(count: remoteIds.count)
                 try db.execute(
                     sql: "UPDATE podcast SET subscribed_at = NULL WHERE subscribed_at IS NOT NULL AND id NOT IN (\(placeholders))",

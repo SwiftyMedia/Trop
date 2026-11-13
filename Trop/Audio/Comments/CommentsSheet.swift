@@ -16,6 +16,11 @@ struct CommentsSheet: View {
     @Environment(\.settingsStore) private var settings
     @State private var model = CommentsViewModel()
     @State private var accountState = AccountSheetState.shared
+    @State private var isPosting = false
+    @State private var postError: String?
+    @State private var commentText = ""
+    @State private var editingComment: CommentItem?
+    @FocusState private var composerFocused: Bool
 
     var onNavigate: ((DetailRoute) -> Void)?
 
@@ -26,6 +31,8 @@ struct CommentsSheet: View {
                     .padding(.horizontal, DesignTokens.screenHPadding)
                     .padding(.top, 8)
                     .padding(.bottom, 10)
+
+                inputSection
 
                 content
             }
@@ -43,7 +50,9 @@ struct CommentsSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                composerBar
+                if accountState.isLoggedIn, composerFocused {
+                    emojiRow
+                }
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(songTitle.map { "Comments for \($0)" } ?? "Comments")
@@ -93,9 +102,92 @@ struct CommentsSheet: View {
         }
     }
 
-    private var composerBar: some View {
+    /// Composer pinned under the sort bar: avatar + capsule text field (or
+    /// a sign-in prompt when logged out), with the post error underneath.
+    private var inputSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if accountState.isLoggedIn {
+                commentInput
+            } else {
+                signInBar
+            }
+            if let postError {
+                Text(postError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, DesignTokens.screenHPadding)
+            }
+        }
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+    }
+
+    /// Avatar + capsule text field, matching the inline comment bar —
+    /// posting happens from the send button or the return key.
+    private var commentInput: some View {
+        HStack(spacing: 10) {
+            Button {
+                openOwnProfile()
+            } label: {
+                CachedAvatarView(
+                    url: accountState.accountImageUrl.flatMap(URL.init(string:)),
+                    size: 36
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Your profile")
+
+            HStack(spacing: 8) {
+                TextField(
+                    editingComment == nil ? "Add a comment…" : "Edit comment",
+                    text: $commentText,
+                    axis: .vertical
+                )
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...4)
+                    .focused($composerFocused)
+                    .submitLabel(.send)
+                    .disabled(isPosting)
+                    .onSubmit { submitComment(commentText) }
+                if editingComment != nil {
+                    Button(action: cancelEditing) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Cancel")
+                }
+                if isPosting {
+                    ProgressView()
+                } else if !trimmedComment.isEmpty {
+                    Button {
+                        submitComment(commentText)
+                    } label: {
+                        Image(systemName: editingComment == nil ? "arrow.up.circle.fill" : "checkmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(settings.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(editingComment == nil ? "Post comment" : "Save comment")
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+        }
+        .padding(.horizontal, DesignTokens.screenHPadding)
+        .padding(.vertical, 10)
+    }
+
+    /// Logged-out fallback: the same bar, but tapping opens the login sheet.
+    private var signInBar: some View {
         Button {
-            openOnYouTube()
+            accountState.isLoginSheetPresented = true
         } label: {
             HStack(spacing: 12) {
                 CachedAvatarView(
@@ -115,11 +207,36 @@ struct CommentsSheet: View {
             )
             .padding(.horizontal, DesignTokens.screenHPadding)
             .padding(.vertical, 10)
-            .background(.bar)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add a comment on YouTube")
+        .accessibilityLabel("Add a comment")
     }
+
+    /// Quick-react row docked to the keyboard while composing; taps append
+    /// straight into the comment text. Emojis spread edge-to-edge.
+    private var emojiRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Self.quickEmojis, id: \.self) { emoji in
+                Button {
+                    commentText += emoji
+                } label: {
+                    Text(emoji)
+                        .font(.title)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, DesignTokens.screenHPadding)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private var trimmedComment: String {
+        commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static let quickEmojis = ["❤️", "😂", "🎉", "😢", "😮", "😅", "😌"]
 
     // MARK: - Content
 
@@ -169,7 +286,12 @@ struct CommentsSheet: View {
                     onLoadMoreReplies: {
                         Task { await model.loadMoreReplies(for: comment) }
                     },
-                    onAuthorTap: { openAuthor($0) }
+                    onAuthorTap: { openAuthor($0) },
+                    onVote: { target, direction in
+                        vote(target, direction)
+                    },
+                    onDelete: { model.delete($0) },
+                    onEdit: { beginEditing($0) }
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowSeparator(.hidden)
@@ -198,6 +320,7 @@ struct CommentsSheet: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func emptyState(title: String, systemImage: String, showsRetry: Bool) -> some View {
@@ -220,9 +343,51 @@ struct CommentsSheet: View {
         .padding()
     }
 
-    private func openOnYouTube() {
-        guard let url = URL(string: "https://www.youtube.com/watch?v=\(videoId)") else { return }
-        openURL(url)
+    private func submitComment(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isPosting else { return }
+        let target = editingComment
+        isPosting = true
+        postError = nil
+        Task {
+            do {
+                if let target {
+                    try await model.edit(target, text: trimmed)
+                } else {
+                    try await model.postComment(trimmed)
+                }
+                isPosting = false
+                commentText = ""
+                editingComment = nil
+                composerFocused = false
+            } catch {
+                isPosting = false
+                postError = error.localizedDescription
+            }
+        }
+    }
+
+    private func beginEditing(_ comment: CommentItem) {
+        guard comment.editParams != nil else { return }
+        editingComment = comment
+        commentText = CommentsParser.plainText(for: comment.runs)
+        postError = nil
+        composerFocused = true
+    }
+
+    private func cancelEditing() {
+        editingComment = nil
+        commentText = ""
+        postError = nil
+        composerFocused = false
+    }
+
+    private func vote(_ comment: CommentItem, _ direction: CommentsViewModel.VoteDirection) {
+        guard CommentsViewModel.voteToken(for: comment, direction) != nil else {
+            accountState.isLoginSheetPresented = true
+            return
+        }
+        Task { await model.vote(comment, direction) }
     }
 
     private func openAuthor(_ author: CommentAuthor) {
@@ -238,7 +403,16 @@ struct CommentsSheet: View {
             openURL(channelURL)
             return
         }
-        let route = DetailRoute.artist(browseId: browseId)
+        navigate(.artist(browseId: browseId))
+    }
+
+    /// Tapping the composer photo opens the viewer's own artist page.
+    private func openOwnProfile() {
+        guard let channelId = accountState.accountChannelId else { return }
+        navigate(.artist(browseId: channelId))
+    }
+
+    private func navigate(_ route: DetailRoute) {
         guard let onNavigate else {
             dismiss()
             AppRouter.shared.open(route)
@@ -262,8 +436,12 @@ private struct CommentRowView: View {
     let onToggleReplies: () -> Void
     let onLoadMoreReplies: () -> Void
     let onAuthorTap: (CommentAuthor) -> Void
+    let onVote: (CommentItem, CommentsViewModel.VoteDirection) -> Void
+    let onDelete: (CommentItem) -> Void
+    let onEdit: (CommentItem) -> Void
 
     @State private var expanded = false
+    @State private var showDeleteConfirm = false
 
     private var bodyText: String {
         CommentsParser.plainText(for: comment.runs)
@@ -326,18 +504,30 @@ private struct CommentRowView: View {
                 }
 
                 HStack(spacing: 16) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "hand.thumbsup")
-                        if !comment.likeCountText.isEmpty {
-                            Text(comment.likeCountText)
+                    Button {
+                        onVote(comment, .like)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: comment.voteState == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            if !comment.likeCountText.isEmpty {
+                                Text(comment.likeCountText)
+                            }
                         }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    Image(systemName: "hand.thumbsdown")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(comment.voteState == .liked ? accent : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(comment.voteState == .liked ? "Unlike" : "Like")
+
+                    Button {
+                        onVote(comment, .dislike)
+                    } label: {
+                        Image(systemName: comment.voteState == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                            .font(.caption)
+                            .foregroundStyle(comment.voteState == .disliked ? accent : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(comment.voteState == .disliked ? "Remove dislike" : "Dislike")
 
                     if comment.replyCount > 0 || comment.replyContinuation != nil {
                         Button(action: onToggleReplies) {
@@ -365,6 +555,42 @@ private struct CommentRowView: View {
 
                 repliesSection
             }
+
+            if comment.deleteAction != nil || comment.editParams != nil {
+                Spacer(minLength: 0)
+                commentMenu
+            }
+        }
+    }
+
+    /// Vertical three-dots menu — only own comments have edit/delete params.
+    private var commentMenu: some View {
+        Menu {
+            if comment.editParams != nil {
+                Button("Edit comment", systemImage: "pencil") { onEdit(comment) }
+            }
+            if comment.deleteAction != nil {
+                Button("Delete comment", systemImage: "trash", role: .destructive) {
+                    showDeleteConfirm = true
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(90))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Comment options")
+        .confirmationDialog(
+            "Delete comment?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete comment", role: .destructive) { onDelete(comment) }
+        } message: {
+            Text("This can't be undone.")
         }
     }
 
@@ -379,7 +605,14 @@ private struct CommentRowView: View {
         case .expanded, .loadingMore:
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(replies) { reply in
-                    CommentReplyRow(comment: reply, accent: accent, onAuthorTap: onAuthorTap)
+                    CommentReplyRow(
+                        comment: reply,
+                        accent: accent,
+                        onAuthorTap: onAuthorTap,
+                        onVote: onVote,
+                        onDelete: onDelete,
+                        onEdit: onEdit
+                    )
                 }
                 if repliesStatus == .loadingMore {
                     ProgressView()
@@ -405,7 +638,11 @@ private struct CommentReplyRow: View {
     let comment: CommentItem
     let accent: Color
     let onAuthorTap: (CommentAuthor) -> Void
+    let onVote: (CommentItem, CommentsViewModel.VoteDirection) -> Void
+    let onDelete: (CommentItem) -> Void
+    let onEdit: (CommentItem) -> Void
     @State private var expanded = false
+    @State private var showDeleteConfirm = false
 
     private var bodyText: String {
         CommentsParser.plainText(for: comment.runs)
@@ -447,12 +684,68 @@ private struct CommentReplyRow: View {
                         .foregroundStyle(accent)
                         .buttonStyle(.plain)
                 }
-                if !comment.likeCountText.isEmpty {
-                    Label(comment.likeCountText, systemImage: "hand.thumbsup")
+                HStack(spacing: 14) {
+                    Button {
+                        onVote(comment, .like)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: comment.voteState == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            if !comment.likeCountText.isEmpty {
+                                Text(comment.likeCountText)
+                            }
+                        }
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(comment.voteState == .liked ? accent : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(comment.voteState == .liked ? "Unlike" : "Like")
+
+                    Button {
+                        onVote(comment, .dislike)
+                    } label: {
+                        Image(systemName: comment.voteState == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                            .font(.caption2)
+                            .foregroundStyle(comment.voteState == .disliked ? accent : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(comment.voteState == .disliked ? "Remove dislike" : "Dislike")
                 }
             }
+
+            if comment.deleteAction != nil || comment.editParams != nil {
+                Spacer(minLength: 0)
+                replyMenu
+            }
+        }
+    }
+
+    private var replyMenu: some View {
+        Menu {
+            if comment.editParams != nil {
+                Button("Edit comment", systemImage: "pencil") { onEdit(comment) }
+            }
+            if comment.deleteAction != nil {
+                Button("Delete reply", systemImage: "trash", role: .destructive) {
+                    showDeleteConfirm = true
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(90))
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Reply options")
+        .confirmationDialog(
+            "Delete reply?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete reply", role: .destructive) { onDelete(comment) }
+        } message: {
+            Text("This can't be undone.")
         }
     }
 }
@@ -486,6 +779,7 @@ final class CommentsViewModel {
     private(set) var moreFailed = false
     private(set) var replies: [String: [CommentItem]] = [:]
     private(set) var replyStatus: [String: RepliesStatus] = [:]
+    private(set) var createCommentParams: String?
 
     private var topToken: String?
     private var newestToken: String?
@@ -606,6 +900,219 @@ final class CommentsViewModel {
         }
     }
 
+    // MARK: - Voting
+
+    enum VoteDirection {
+        case like
+        case dislike
+    }
+
+    static func voteToken(for comment: CommentItem, _ direction: VoteDirection) -> String? {
+        switch direction {
+        case .like:
+            return comment.voteState == .liked ? comment.unlikeAction : comment.likeAction
+        case .dislike:
+            return comment.voteState == .disliked ? comment.undislikeAction : comment.dislikeAction
+        }
+    }
+
+    func vote(_ comment: CommentItem, _ direction: VoteDirection) async {
+        guard let token = Self.voteToken(for: comment, direction) else { return }
+        let nextState: CommentVoteState
+        switch direction {
+        case .like: nextState = comment.voteState == .liked ? .indifferent : .liked
+        case .dislike: nextState = comment.voteState == .disliked ? .indifferent : .disliked
+        }
+        let previousState = comment.voteState
+        let delta = (nextState == .liked ? 1 : 0) - (previousState == .liked ? 1 : 0)
+
+        // Optimistic: the action response carries no framework updates.
+        applyVote(id: comment.id, to: nextState, delta: delta)
+        do {
+            let succeeded = try await CommentsService.shared.performCommentAction(action: token)
+            guard !succeeded else { return }
+            applyVote(id: comment.id, to: previousState, delta: -delta)
+        } catch {
+            applyVote(id: comment.id, to: previousState, delta: -delta)
+        }
+    }
+
+    private func applyVote(id: String, to state: CommentVoteState, delta: Int) {
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            items[index] = Self.voted(items[index], to: state, delta: delta)
+        }
+        for (key, list) in replies {
+            guard let index = list.firstIndex(where: { $0.id == id }) else { continue }
+            var updated = list
+            updated[index] = Self.voted(updated[index], to: state, delta: delta)
+            replies[key] = updated
+        }
+    }
+
+    private static func voted(_ comment: CommentItem, to state: CommentVoteState, delta: Int) -> CommentItem {
+        var updated = comment
+        updated.voteState = state
+        if delta != 0 {
+            updated.likeCountText = adjustedLikeCount(comment.likeCountText, delta: delta)
+        }
+        return updated
+    }
+
+    private static func adjustedLikeCount(_ text: String, delta: Int) -> String {
+        guard let value = compactCountValue(text) else { return text }
+        return compactCountText(max(0, value + delta))
+    }
+
+    private static func compactCountValue(_ text: String) -> Int? {
+        let cleaned = text
+            .replacingOccurrences(of: "\u{00a0}", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .uppercased()
+        guard let last = cleaned.last, "KMB".contains(last) else {
+            return Int(cleaned.replacingOccurrences(of: ",", with: ""))
+        }
+        let number = String(cleaned.dropLast()).replacingOccurrences(of: ",", with: "")
+        guard let parsed = Double(number) else { return nil }
+        switch last {
+        case "K": return Int((parsed * 1_000).rounded())
+        case "M": return Int((parsed * 1_000_000).rounded())
+        default: return Int((parsed * 1_000_000_000).rounded())
+        }
+    }
+
+    private static func compactCountText(_ value: Int) -> String {
+        switch value {
+        case ..<1_000: return String(value)
+        case ..<1_000_000: return compactDecimal(Double(value) / 1_000) + "K"
+        case ..<1_000_000_000: return compactDecimal(Double(value) / 1_000_000) + "M"
+        default: return compactDecimal(Double(value) / 1_000_000_000) + "B"
+        }
+    }
+
+    private static func compactDecimal(_ value: Double) -> String {
+        let text = String(format: "%.1f", value)
+        return text.hasSuffix(".0") ? String(text.dropLast(2)) : text
+    }
+
+    // MARK: - Deleting
+
+    /// Removes the comment optimistically and replays its server-issued
+    /// delete token; restores the row (and the total count) if YouTube
+    /// rejects the action.
+    func delete(_ comment: CommentItem) {
+        guard let token = comment.deleteAction else { return }
+        guard let removal = removeForDelete(id: comment.id) else { return }
+        Task {
+            do {
+                let succeeded = try await CommentsService.shared.performCommentAction(action: token)
+                guard !succeeded else { return }
+                restore(removal)
+            } catch {
+                restore(removal)
+            }
+        }
+    }
+
+    func edit(_ comment: CommentItem, text: String) async throws {
+        guard let params = comment.editParams else {
+            throw CommentsError.rejected(
+                NSLocalizedString("This comment can't be edited.", comment: "")
+            )
+        }
+        try await CommentsService.shared.updateComment(params: params, text: text)
+        updateEditedComment(id: comment.id, text: text)
+    }
+
+    private func updateEditedComment(id: String, text: String) {
+        func edited(_ comment: CommentItem) -> CommentItem {
+            var updated = comment
+            updated.runs = [.text(text)]
+            return updated
+        }
+
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            items[index] = edited(items[index])
+        }
+        for (key, list) in replies {
+            guard let index = list.firstIndex(where: { $0.id == id }) else { continue }
+            var updated = list
+            updated[index] = edited(updated[index])
+            replies[key] = updated
+        }
+    }
+
+    private struct PendingRemoval {
+        let comment: CommentItem
+        let index: Int
+        let parentKey: String?
+        let totalCountText: String?
+    }
+
+    private func removeForDelete(id: String) -> PendingRemoval? {
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            let removed = items.remove(at: index)
+            let previousTotal = totalCountText
+            if let previousTotal, let value = Self.compactCountValue(previousTotal) {
+                totalCountText = Self.formattedTotal(value - 1)
+            }
+            return PendingRemoval(comment: removed, index: index, parentKey: nil, totalCountText: previousTotal)
+        }
+        for (key, list) in replies {
+            guard let index = list.firstIndex(where: { $0.id == id }) else { continue }
+            var updated = list
+            let removed = updated.remove(at: index)
+            replies[key] = updated
+            return PendingRemoval(comment: removed, index: index, parentKey: key, totalCountText: nil)
+        }
+        return nil
+    }
+
+    private func restore(_ removal: PendingRemoval) {
+        if let key = removal.parentKey {
+            var list = replies[key] ?? []
+            guard removal.index <= list.count else { return }
+            list.insert(removal.comment, at: removal.index)
+            replies[key] = list
+        } else {
+            guard removal.index <= items.count else { return }
+            items.insert(removal.comment, at: removal.index)
+        }
+        if let count = removal.totalCountText { totalCountText = count }
+    }
+
+    /// Comment totals render as grouped digits ("2,661"), not the compact
+    /// K-notation used for like counts.
+    private static func formattedTotal(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: max(0, value))) ?? String(max(0, value))
+    }
+
+    // MARK: - Composer
+
+    /// Posts a top-level comment, then refreshes the list so the new
+    /// comment arrives with its real author, tokens, and counts.
+    func postComment(_ text: String) async throws {
+        guard let params = createCommentParams else {
+            throw CommentsError.rejected(
+                NSLocalizedString("Comments haven't loaded yet — try again in a moment", comment: "")
+            )
+        }
+        try await CommentsService.shared.postComment(params: params, text: text)
+        await refreshAfterPost()
+    }
+
+    private func refreshAfterPost() async {
+        guard let videoId = loadedVideoId else { return }
+        do {
+            let page = try await CommentsService.shared.loadInitial(videoId: videoId)
+            guard !Task.isCancelled else { return }
+            apply(page: page, replacing: true)
+        } catch {
+            // The comment is posted; a stale list beats an error flash.
+        }
+    }
+
     private func performLoad(videoId: String) async {
         status = .loading
         items = []
@@ -617,6 +1124,7 @@ final class CommentsViewModel {
         replies = [:]
         replyStatus = [:]
         replyContinuations = [:]
+        createCommentParams = nil
         sort = .top
         loadedVideoId = videoId
 
@@ -647,6 +1155,7 @@ final class CommentsViewModel {
         if let top = page.sortTokens[.top] { topToken = top }
         if let newest = page.sortTokens[.newest] { newestToken = newest }
         if let count = page.totalCountText { totalCountText = count }
+        if let params = page.createCommentParams { createCommentParams = params }
 
         for item in page.items {
             if let token = item.replyContinuation {

@@ -16,6 +16,9 @@ final class AccountSheetState {
 
     var accountName = "Guest"
     var accountImageUrl: String?
+    /// Viewer's own channel id — set once account info is fetched, so the
+    /// comments composer can link the photo to the viewer's artist page.
+    var accountChannelId: String?
     var isLoginSheetPresented = false
     let loginModel = LoginViewModel()
 
@@ -61,6 +64,10 @@ final class AccountSheetState {
                 return
             }
             accountName = info.name
+            if let channelId = info.channelId {
+                accountChannelId = channelId
+                Log.loginViewModel.debug("fetchAccountInfo: channelId=\(channelId)")
+            }
             if let url = info.thumbnailUrl {
                 accountImageUrl = url
                 return
@@ -85,6 +92,7 @@ final class AccountSheetState {
         loginModel.logout()
         accountName = "Guest"
         accountImageUrl = nil
+        accountChannelId = nil
         hasAttemptedTokenRefresh = false
     }
     func refreshRotatedSession() async {

@@ -14,9 +14,9 @@
 		</dict>
 	</array>
 	<key>LASTFM_API_KEY</key>
-	<string>88a116aea6f621f42fd01981c2320404</string>
+	<string>string 88a116aea6f621f42fd01981c2320404</string>
 	<key>LASTFM_SECRET</key>
-	<string>9d0c8ac8a648a485d2cfa0f552c5615c</string>
+	<string>string 9d0c8ac8a648a485d2cfa0f552c5615c</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

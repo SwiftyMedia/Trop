@@ -26,11 +26,11 @@
       "versions": [
         {
           "version": "0.0.5",
-          "buildVersion": "1",
-          "date": "2026-10-23T18:16:53Z",
-          "localizedDescription": "**Full Changelog**: https://github.com/SwiftyMedia/Trop/compare/v0.0.3...v0.0.5\n\n[Discord](https://discord.gg/QrMwZAfU97)",
+          "buildVersion": "4",
+          "date": "2026-11-14T12:11:47Z",
+          "localizedDescription": "## What's Changed\n* feat: add YouTube comment section for songs (#20) by @lawrence-millard in https://github.com/SwiftyMedia/Trop/pull/27\n\n\n**Full Changelog**: https://github.com/SwiftyMedia/Trop/compare/v0.0.4...v0.0.5\n\n[Discord](https://discord.gg/QrMwZAfU97)",
           "downloadURL": "https://github.com/SwiftyMedia/Trop/releases/download/v0.0.5/Trop.ipa",
-          "size": 47611625,
+          "size": 35924605,
           "minOSVersion": "26.0"
         }
       ]

@@ -29,6 +29,7 @@ struct PlayerMenuSheet: View {
     @State private var showArtistPicker = false
     @State private var showRadioOptions = false
     @State private var showShareDialog = false
+    @State private var showComments = false
     @State private var isResolvingArtist = false
     @ObservedObject private var downloadManager = DownloadManager.shared
 
@@ -51,6 +52,12 @@ struct PlayerMenuSheet: View {
                     downloadRow
                 }
                 MenuCard {
+                    MenuRow(
+                        icon: "bubble.left.and.bubble.right",
+                        title: "Comments",
+                        subtitle: "Top & newest from YouTube"
+                    ) { showComments = true }
+                    Divider()
                     NavigationLink(value: Destination.details) {
                         MenuRowLabel(icon: "info.circle", title: "Details", subtitle: "Metadata & stream information")
                     }
@@ -103,6 +110,13 @@ struct PlayerMenuSheet: View {
         }
         .sheet(isPresented: $showRadioOptions) {
             RadioOptionsSheet(song: song)
+        }
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(
+                videoId: song.videoId,
+                songTitle: song.title,
+                onNavigate: { navigate($0) }
+            )
         }
         .confirmationDialog("Share", isPresented: $showShareDialog, titleVisibility: .visible) {
             Button("Copy Link") {

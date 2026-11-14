@@ -20,6 +20,7 @@ struct CommentsSheet: View {
     @State private var postError: String?
     @State private var commentText = ""
     @State private var editingComment: CommentItem?
+    @State private var reportingComment: CommentItem?
     @FocusState private var composerFocused: Bool
 
     var onNavigate: ((DetailRoute) -> Void)?
@@ -58,6 +59,9 @@ struct CommentsSheet: View {
             .accessibilityLabel(songTitle.map { "Comments for \($0)" } ?? "Comments")
         }
         .appSheetChrome([.medium, .large])
+        .sheet(item: $reportingComment) { comment in
+            ReportCommentSheet(comment: comment)
+        }
         .task(id: videoId) {
             await model.load(videoId: videoId)
         }
@@ -291,7 +295,8 @@ struct CommentsSheet: View {
                         vote(target, direction)
                     },
                     onDelete: { model.delete($0) },
-                    onEdit: { beginEditing($0) }
+                    onEdit: { beginEditing($0) },
+                    onReport: { reportingComment = $0 }
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowSeparator(.hidden)
@@ -439,6 +444,7 @@ private struct CommentRowView: View {
     let onVote: (CommentItem, CommentsViewModel.VoteDirection) -> Void
     let onDelete: (CommentItem) -> Void
     let onEdit: (CommentItem) -> Void
+    let onReport: (CommentItem) -> Void
 
     @State private var expanded = false
     @State private var showDeleteConfirm = false
@@ -556,14 +562,15 @@ private struct CommentRowView: View {
                 repliesSection
             }
 
-            if comment.deleteAction != nil || comment.editParams != nil {
+            if comment.deleteAction != nil || comment.editParams != nil || comment.reportParams != nil {
                 Spacer(minLength: 0)
                 commentMenu
             }
         }
     }
 
-    /// Vertical three-dots menu — only own comments have edit/delete params.
+    /// Vertical three-dots menu: edit/delete for own comments, Report for
+    /// anyone's (only present on signed-in payloads).
     private var commentMenu: some View {
         Menu {
             if comment.editParams != nil {
@@ -573,6 +580,9 @@ private struct CommentRowView: View {
                 Button("Delete comment", systemImage: "trash", role: .destructive) {
                     showDeleteConfirm = true
                 }
+            }
+            if comment.reportParams != nil {
+                Button("Report comment", systemImage: "flag") { onReport(comment) }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -611,7 +621,8 @@ private struct CommentRowView: View {
                         onAuthorTap: onAuthorTap,
                         onVote: onVote,
                         onDelete: onDelete,
-                        onEdit: onEdit
+                        onEdit: onEdit,
+                        onReport: onReport
                     )
                 }
                 if repliesStatus == .loadingMore {
@@ -641,6 +652,7 @@ private struct CommentReplyRow: View {
     let onVote: (CommentItem, CommentsViewModel.VoteDirection) -> Void
     let onDelete: (CommentItem) -> Void
     let onEdit: (CommentItem) -> Void
+    let onReport: (CommentItem) -> Void
     @State private var expanded = false
     @State private var showDeleteConfirm = false
 
@@ -712,7 +724,7 @@ private struct CommentReplyRow: View {
                 }
             }
 
-            if comment.deleteAction != nil || comment.editParams != nil {
+            if comment.deleteAction != nil || comment.editParams != nil || comment.reportParams != nil {
                 Spacer(minLength: 0)
                 replyMenu
             }
@@ -728,6 +740,9 @@ private struct CommentReplyRow: View {
                 Button("Delete reply", systemImage: "trash", role: .destructive) {
                     showDeleteConfirm = true
                 }
+            }
+            if comment.reportParams != nil {
+                Button("Report comment", systemImage: "flag") { onReport(comment) }
             }
         } label: {
             Image(systemName: "ellipsis")

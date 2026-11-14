@@ -52,6 +52,7 @@
 "Cancel" = "Cancel";
 "Canvas" = "Canvas";
 "Center" = "Center";
+"Child abuse" = "Child abuse";
 "Choose how the app follows your device appearance." = "Choose how the app follows your device appearance.";
 "Choose which library sections sync from your YouTube Music account." = "Choose which library sections sync from your YouTube Music account.";
 "Classical" = "Classical";
@@ -88,6 +89,7 @@
 "Couldn't load playlist" = "Couldn't load playlist";
 "Couldn't load podcast" = "Couldn't load podcast";
 "Couldn't load replies. Tap to retry." = "Couldn't load replies. Tap to retry.";
+"Couldn't load report options" = "Couldn't load report options";
 "Couldn't load your homescreen" = "Couldn't load your homescreen";
 "Country" = "Country";
 "Covers and remixes" = "Covers and remixes";
@@ -115,6 +117,8 @@
 "Disabled providers are skipped when fetching lyrics." = "Disabled providers are skipped when fetching lyrics.";
 "Discord" = "Discord";
 "Discord Rich Presence uses Discord's Social SDK. Token stays encrypted in Keychain." = "Discord Rich Presence uses Discord's Social SDK. Token stays encrypted in Keychain.";
+"Discover a bug? Let us know" = "Discover a bug? Let us know";
+"Dislike" = "Dislike";
 "Dismiss" = "Dismiss";
 "Done" = "Done";
 "Download" = "Download";
@@ -145,6 +149,7 @@
 "Expires in" = "Expires in";
 "Explore" = "Explore";
 "Explore failed" = "Explore failed";
+"Failed to report comment" = "Failed to report comment";
 "Fans Also Like" = "Fans Also Like";
 "Featured" = "Featured";
 "Featured playlists" = "Featured playlists";
@@ -163,6 +168,9 @@
 "Get new episodes in your library" = "Get new episodes in your library";
 "GitHub" = "GitHub";
 "Guest" = "Guest";
+"Harassment or bullying" = "Harassment or bullying";
+"Harmful or dangerous acts" = "Harmful or dangerous acts";
+"Hateful or abusive content" = "Hateful or abusive content";
 "Hide Explicit Content" = "Hide Explicit Content";
 "High" = "High";
 "High (128–192 kbps)" = "High (128–192 kbps)";
@@ -220,12 +228,14 @@
 "Lyrics not found" = "Lyrics not found";
 "March" = "March";
 "Maximum delay before scrobbling (30–360s)." = "Maximum delay before scrobbling (30–360s).";
+"Maximum number of characters exceeded" = "Maximum number of characters exceeded";
 "May" = "May";
 "Medium" = "Medium";
 "Metadata & stream information" = "Metadata & stream information";
 "Metal" = "Metal";
 "Minimum Duration" = "Minimum Duration";
 "Minimum Track Duration" = "Minimum Track Duration";
+"Misinformation" = "Misinformation";
 "Mixed for you" = "Mixed for you";
 "Mood & Genres" = "Mood & Genres";
 "Moods & genres" = "Moods & genres";
@@ -294,6 +304,8 @@
 "Previous" = "Previous";
 "Privacy" = "Privacy";
 "Profile unavailable" = "Profile unavailable";
+"Promotes terrorism" = "Promotes terrorism";
+"Provide additional details (optional)" = "Provide additional details (optional)";
 "Provider Order" = "Provider Order";
 "Providers" = "Providers";
 "Queue" = "Queue";
@@ -312,8 +324,12 @@
 "Remove All Downloads" = "Remove All Downloads";
 "Remove Download" = "Remove Download";
 "Remove all downloads" = "Remove all downloads";
+"Remove dislike" = "Remove dislike";
 "Remove from Playlist" = "Remove from Playlist";
 "Replies" = "Replies";
+"Reply" = "Reply";
+"Report comment" = "Report comment";
+"Report submitted" = "Report submitted";
 "Reset offset" = "Reset offset";
 "Results" = "Results";
 "Retry" = "Retry";
@@ -341,6 +357,7 @@
 "Select All" = "Select All";
 "September" = "September";
 "Settings" = "Settings";
+"Sexual content" = "Sexual content";
 "Share" = "Share";
 "Share this album with others" = "Share this album with others";
 "Share this playlist with others" = "Share this playlist with others";
@@ -352,6 +369,7 @@
 "Shows a progress ring during long instrumental gaps" = "Shows a progress ring during long instrumental gaps";
 "Shuffle" = "Shuffle";
 "Shuffle artist" = "Shuffle artist";
+"Sign in to report this comment." = "Sign in to report this comment.";
 "Sign in to see your YouTube Music history." = "Sign in to see your YouTube Music history.";
 "Similar" = "Similar";
 "Similar to %@" = "Similar to %@";
@@ -373,6 +391,7 @@
 "Sort results" = "Sort results";
 "Sound" = "Sound";
 "Source" = "Source";
+"Spam or misleading" = "Spam or misleading";
 "Speed Dial" = "Speed Dial";
 "SponsorBlock" = "SponsorBlock";
 "Spotify Canvas" = "Spotify Canvas";
@@ -385,8 +404,10 @@
 "Stream" = "Stream";
 "Style" = "Style";
 "Style, size & explicit filter" = "Style, size & explicit filter";
+"Submit report" = "Submit report";
 "Subscribe" = "Subscribe";
 "Subscribed" = "Subscribed";
+"Suicide, self-harm, or eating disorders" = "Suicide, self-harm, or eating disorders";
 "Swipe Artwork to Skip" = "Swipe Artwork to Skip";
 "Swipe left or right on the artwork in the full player to play the next or previous song." = "Swipe left or right on the artwork in the full player to play the next or previous song.";
 "Sync" = "Sync";
@@ -401,6 +422,7 @@
 "Syncs with your YouTube Music account. This cannot be changed later." = "Syncs with your YouTube Music account. This cannot be changed later.";
 "System" = "System";
 "Template" = "Template";
+"Thanks for helping keep YouTube safe." = "Thanks for helping keep YouTube safe.";
 "Theme" = "Theme";
 "Theme Mode" = "Theme Mode";
 "This can't be undone." = "This can't be undone.";
@@ -438,6 +460,7 @@
 "View Album" = "View Album";
 "View Artist" = "View Artist";
 "Views" = "Views";
+"Violent or repulsive content" = "Violent or repulsive content";
 "Vocal" = "Vocal";
 "Waiting for login…" = "Waiting for login…";
 "Watching" = "Watching";

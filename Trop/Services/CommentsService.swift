@@ -108,6 +108,44 @@ actor CommentsService {
         }
     }
 
+    // MARK: - Report flow
+
+    /// Opens the comment abuse-report panel: the reason list plus the
+    /// flow-state entity every later `/flow` call must echo back. Works
+    /// signed-out too — YouTube gates the actual submission server-side.
+    func loadReportPanel(params: String) async throws -> CommentsParser.CommentReportPanel {
+        let json = try await reportPOST { client in
+            try await client.abuseReportPanel(params: params, client: .web)
+        }
+        guard let panel = CommentsParser.parseReportPanel(json) else {
+            throw CommentsError.rejected(
+                NSLocalizedString("Couldn't load report options", comment: "")
+            )
+        }
+        return panel
+    }
+
+    /// Sends one `/flow` advance (reason → details → confirmation) and
+    /// classifies the response: new steps, the server's failure toast, or
+    /// a no-op 200.
+    func advanceReportFlow(
+        flowState: [String: Any],
+        flowStateEntityKey: String,
+        flowId: String,
+        targetId: String
+    ) async throws -> CommentsParser.CommentReportFlowUpdate {
+        let json = try await reportPOST { client in
+            try await client.abuseReportFlow(
+                flowState: flowState,
+                flowStateEntityKey: flowStateEntityKey,
+                flowId: flowId,
+                targetId: targetId,
+                client: .web
+            )
+        }
+        return CommentsParser.parseReportFlowUpdate(json)
+    }
+
     private static func postFailureMessage(_ json: [String: Any]) -> String? {
         if let error = json["error"] as? [String: Any], let message = error["message"] as? String {
             return message
@@ -158,13 +196,38 @@ actor CommentsService {
         return CommentsParser.parseCommentsPage(json)
     }
 
-    /// Diagnostic: writes the raw comments page to Documents (overwritten
-    /// on every fetch) so payload/menu shapes can be inspected off-device.
-    private static func dumpCommentsPage(_ json: [String: Any]) {
-        guard JSONSerialization.isValidJSONObject(json),
-              let data = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]),
-              let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        try? data.write(to: docs.appendingPathComponent("comments-own-debug.json"), options: .atomic)
+    // MARK: - Report helpers
+
+    /// POSTs an abuse-report call music-host first with www fallback (same
+    /// shape as the other comment mutations). A structured server rejection
+    /// (400 `error.message`) is surfaced verbatim; everything else falls
+    /// back to www before being wrapped.
+    private func reportPOST(
+        _ call: @escaping (InnerTubeClient) async throws -> [String: Any]
+    ) async throws -> [String: Any] {
+        do {
+            await syncAuth(into: musicClient)
+            return try await call(musicClient)
+        } catch {
+            await syncAuth(into: youtubeClient)
+            do {
+                return try await call(youtubeClient)
+            } catch {
+                if let message = Self.serverMessage(from: error) {
+                    throw CommentsError.rejected(message)
+                }
+                throw CommentsError.underlying(error)
+            }
+        }
+    }
+
+    /// Pulls `error.message` out of a non-2xx InnerTube body.
+    private static func serverMessage(from error: Error) -> String? {
+        guard case InnerTubeError.httpError(_, let data) = error,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errorObject = json["error"] as? [String: Any],
+              let message = errorObject["message"] as? String else { return nil }
+        return message
     }
 
     private func fetchContinuationJSON(_ continuation: String) async throws -> [String: Any] {
@@ -181,7 +244,6 @@ actor CommentsService {
                 throw CommentsError.underlying(error)
             }
         }
-        Self.dumpCommentsPage(json)
         return json
     }
 

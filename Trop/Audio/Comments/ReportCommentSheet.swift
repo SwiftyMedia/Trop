@@ -10,9 +10,8 @@ import SwiftUI
 /// YouTube's comment abuse-report flow: reason list → optional details,
 /// driven by `get_panel` + `/flow` exactly like the web. The sheet closes
 /// itself as soon as the server confirms the report — there is no
-/// confirmation screen. Reason labels and page copy arrive from the server
-/// (English — the app pins `hl=en`); app chrome and reason fallbacks go
-/// through Localizable.strings.
+/// confirmation screen. Known reason labels use app localization; other
+/// panel copy arrives from the server (English — the app pins `hl=en`).
 struct ReportCommentSheet: View {
     let comment: CommentItem
 
@@ -99,7 +98,7 @@ struct ReportCommentSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let header = model.panel?.pageHeader {
-                    Text(header)
+                    Text(localizedPanelText(header))
                         .font(.title3.weight(.bold))
                 }
 
@@ -147,13 +146,18 @@ struct ReportCommentSheet: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    /// Server label first; English key fallbacks only if the panel omits one.
+    /// Known reason labels are localized by stable key; unknown labels use the server text.
     private func reasonText(_ reason: CommentsParser.CommentReportReason) -> String {
-        if let text = reason.text, !text.isEmpty { return text }
-        if let key = Self.reasonFallbackKeys[reason.key] {
-            return NSLocalizedString(key, comment: "Report reason fallback")
+        if let key = Self.reasonLocalizationKeys[reason.key] {
+            return NSLocalizedString(key, comment: "Report reason")
         }
+        if let text = reason.text, !text.isEmpty { return text }
         return reason.key
+    }
+
+    private func localizedPanelText(_ text: String) -> String {
+        guard let key = Self.panelLocalizationKeys[text] else { return text }
+        return NSLocalizedString(key, comment: "Report panel text")
     }
 
     // MARK: - Details
@@ -255,7 +259,8 @@ struct ReportCommentSheet: View {
     }
 
     private func submitButton(action: @escaping () -> Void) -> some View {
-        let title = model.panel?.navTitle ?? NSLocalizedString("Submit report", comment: "")
+        let title = model.panel?.navTitle.map(localizedPanelText)
+            ?? NSLocalizedString("Submit report", comment: "")
         let enabled = model.canSubmit
         return Button(action: action) {
             HStack(spacing: 8) {
@@ -279,11 +284,10 @@ struct ReportCommentSheet: View {
         .accessibilityLabel(title)
     }
 
-    // MARK: - Fallbacks
+    // MARK: - Reason labels
 
-    /// English labels keyed by YouTube's stable reason enum — used only
-    /// when the panel response omits a reason's text.
-    private static let reasonFallbackKeys: [String: String] = [
+    /// Localizable labels keyed by YouTube's stable reason enum.
+    private static let reasonLocalizationKeys: [String: String] = [
         "SEXUAL": "Sexual content",
         "VIOLENCE": "Violent or repulsive content",
         "HATE": "Hateful or abusive content",
@@ -294,6 +298,12 @@ struct ReportCommentSheet: View {
         "CHILD_ABUSE": "Child abuse",
         "TERRORISM": "Promotes terrorism",
         "SPAM": "Spam or misleading"
+    ]
+
+    private static let panelLocalizationKeys: [String: String] = [
+        "Report": "Report",
+        "What's going on?": "What's going on?",
+        "What’s going on?": "What's going on?"
     ]
 }
 

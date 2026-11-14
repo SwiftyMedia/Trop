@@ -287,10 +287,9 @@ struct SearchView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
+                    Text("•••")
+                        .font(.body.weight(.black))
+                        .foregroundStyle(settings.accentColor)
                 }
                 .contentShape(Rectangle())
             }

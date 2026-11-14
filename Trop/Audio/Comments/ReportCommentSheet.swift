@@ -376,6 +376,7 @@ final class ReportCommentModel {
     /// Mirrors the web's radio handler: a selection only mutates local
     /// entity state — the POST happens when the bottom bar is tapped.
     func selectReason(_ reason: CommentsParser.CommentReportReason) {
+        guard !isAdvancing else { return }
         selectedKey = reason.key
         reasonKey = reason.key
         errorMessage = nil

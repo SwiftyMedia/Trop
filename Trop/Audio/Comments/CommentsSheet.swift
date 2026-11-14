@@ -33,8 +33,6 @@ struct CommentsSheet: View {
                     .padding(.top, 8)
                     .padding(.bottom, 10)
 
-                inputSection
-
                 content
             }
             .background(Color(.systemBackground))
@@ -51,8 +49,11 @@ struct CommentsSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if accountState.isLoggedIn, composerFocused {
-                    emojiRow
+                VStack(spacing: 0) {
+                    if accountState.isLoggedIn, composerFocused {
+                        emojiRow
+                    }
+                    inputSection
                 }
             }
             .accessibilityElement(children: .contain)
@@ -106,8 +107,8 @@ struct CommentsSheet: View {
         }
     }
 
-    /// Composer pinned under the sort bar: avatar + capsule text field (or
-    /// a sign-in prompt when logged out), with the post error underneath.
+    /// Composer pinned to the bottom safe area: avatar + capsule text field
+    /// (or a sign-in prompt when logged out), with the post error underneath.
     private var inputSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             if accountState.isLoggedIn {

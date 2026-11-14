@@ -25,6 +25,8 @@ final class AccountSheetState {
     private let cookieStore = CookieStore()
     private var hasAttemptedTokenRefresh = false
     private var isFetchingAccountInfo = false
+    private var accountInfoFetchID: UUID?
+    private var accountInfoGeneration = 0
 
     var isLoggedIn: Bool { loginModel.isLoggedIn }
 
@@ -37,9 +39,18 @@ final class AccountSheetState {
 
     func fetchAccountInfo() async {
         guard loginModel.isLoggedIn, !isFetchingAccountInfo else { return }
+        let generation = accountInfoGeneration
+        let fetchID = UUID()
         isFetchingAccountInfo = true
-        defer { isFetchingAccountInfo = false }
+        accountInfoFetchID = fetchID
+        defer {
+            if accountInfoFetchID == fetchID {
+                accountInfoFetchID = nil
+                isFetchingAccountInfo = false
+            }
+        }
         for attempt in 1...3 {
+            guard generation == accountInfoGeneration, loginModel.isLoggedIn else { return }
             let info: AccountInfo
             do {
                 info = try await InnerTubeClient.tropShared.accountInfo()
@@ -47,6 +58,7 @@ final class AccountSheetState {
                 Log.loginViewModel.error("fetchAccountInfo: attempt \(attempt) failed: \(error)")
                 return
             }
+            guard generation == accountInfoGeneration, loginModel.isLoggedIn else { return }
             let knownName = !info.name.isEmpty && info.name != "Guest"
             guard knownName else {
                 if attempt < 3 {
@@ -58,7 +70,10 @@ final class AccountSheetState {
                     hasAttemptedTokenRefresh = true
                     // Release the in-flight guard so refreshRotatedSession's
                     // own accountInfo fetch can run after the cookie reissue.
-                    isFetchingAccountInfo = false
+                    if accountInfoFetchID == fetchID {
+                        accountInfoFetchID = nil
+                        isFetchingAccountInfo = false
+                    }
                     await refreshRotatedSession()
                 }
                 return
@@ -89,6 +104,9 @@ final class AccountSheetState {
     }
 
     func signOut() {
+        accountInfoGeneration &+= 1
+        accountInfoFetchID = nil
+        isFetchingAccountInfo = false
         loginModel.logout()
         accountName = "Guest"
         accountImageUrl = nil

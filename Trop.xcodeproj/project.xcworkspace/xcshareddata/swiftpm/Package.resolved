@@ -36,6 +36,15 @@
         "revision" : "83e19143355b02e9261edb2323b3e1e93287ebb9",
         "version" : "12.9.0"
       }
+    },
+    {
+      "identity" : "swiftytube",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyMedia/SwiftyTube.git",
+      "state" : {
+        "revision" : "81d42f72d5fc457a2f3de57d4724f935915cef3c",
+        "version" : "0.0.9"
+      }
     }
   ],
   "version" : 3

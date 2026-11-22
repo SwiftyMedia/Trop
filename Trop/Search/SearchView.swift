@@ -8,12 +8,17 @@
 import SwiftUI
 
 struct SearchView: View {
+    let onExitSearch: () -> Void
     @Environment(SettingsStore.self) private var settings
     @State private var viewModel = SearchViewModel()
     @ObservedObject private var router = AppRouter.shared
     @FocusState private var fieldFocused: Bool
 
     @State private var pendingRoute: DetailRoute?
+
+    init(onExitSearch: @escaping () -> Void = {}) {
+        self.onExitSearch = onExitSearch
+    }
 
     var body: some View {
         NavigationStack(path: $router.searchPath) {
@@ -24,6 +29,7 @@ struct SearchView: View {
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .toolbar(.hidden, for: .navigationBar)
+            .simultaneousGesture(searchBackSwipeGesture)
             .detailRouteDestinations()
             .onChange(of: pendingRoute) { _, route in
                 if let route {
@@ -111,9 +117,30 @@ struct SearchView: View {
     /// Focuses the field (raising the keyboard) whenever the Search tab
     /// becomes active.
     private func focusIfSearchTab() {
-        if AppRouter.shared.selectedTabIndex == 3 {
+        if AppRouter.shared.selectedTabIndex == 3,
+           viewModel.phase == .idle,
+           viewModel.submittedQuery.isEmpty {
             fieldFocused = true
         }
+    }
+
+    /// Keeps the tab-level back gesture available while the search field has
+    /// focus. The keyboard otherwise consumes the edge drag before the
+    /// NavigationStack can pop its current result route.
+    private var searchBackSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                guard value.startLocation.x <= 28,
+                      isHorizontal,
+                      value.translation.width > 80 else { return }
+                fieldFocused = false
+                if !router.searchPath.isEmpty {
+                    router.searchPath.removeLast()
+                } else {
+                    onExitSearch()
+                }
+            }
     }
 
     // MARK: - Content
@@ -287,8 +314,8 @@ struct SearchView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Spacer()
-                    Text("•••")
-                        .font(.body.weight(.black))
+                    Image(systemName: "chevron.right")
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(settings.accentColor)
                 }
                 .contentShape(Rectangle())

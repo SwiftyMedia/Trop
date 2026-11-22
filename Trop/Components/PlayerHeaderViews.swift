@@ -59,8 +59,7 @@ struct PlayerOptionsButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text("⋮")
-                .font(.system(size: 20, weight: .black))
+            VerticalEllipsis(font: .system(size: 18, weight: .bold))
                 .foregroundStyle(color)
                 .frame(width: 36, height: 36)
         }

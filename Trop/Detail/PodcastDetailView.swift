@@ -532,8 +532,7 @@ struct PodcastDetailView: View {
                 .accessibilityLabel(viewModel.isSubscribed ? "Unsubscribe from podcast" : "Subscribe to podcast")
 
                 Button(action: { showMoreSheet = true }, label: {
-                    Text("⋮")
-                        .font(.title3)
+                    VerticalEllipsis(font: .title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .frame(width: 48, height: 48)
                         .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
@@ -682,7 +681,7 @@ struct PodcastMoreSheet: View {
 /// Shows a truncated prefix with an inline tappable More suffix, expanding
 /// to the full text with a Less suffix. The toggle sits immediately after
 /// the text instead of on a separate row below it.
-private struct ExpandableDescriptionText: View {
+struct ExpandableDescriptionText: View {
     let text: String
     var collapsedLimit: Int = 140
     var alignment: TextAlignment = .leading

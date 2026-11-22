@@ -77,6 +77,11 @@ extension ArtistDetailViewModel {
             }
         }
 
+        // Artist bios live in the browse response's description shelf rather
+        // than in the immersive header. Keep microformat as a compatibility
+        // fallback for older/alternate responses.
+        descriptionText = YouTubeMusicArtistParser.biography(in: json)
+
         if name == "Unknown Artist" || thumbnailUrl == nil,
            let microformat = json["microformat"] as? [String: Any],
            let mfRenderer = microformat["microformatDataRenderer"] as? [String: Any] {
@@ -413,6 +418,10 @@ struct ArtistDetailView: View {
         LazyVStack(spacing: 0) {
             header(for: artist)
 
+            if let description = artist.descriptionText, !description.isEmpty {
+                aboutSection(description: description)
+            }
+
             if !artist.songs.isEmpty {
                 songsSection(songs: artist.songs)
             }
@@ -435,10 +444,6 @@ struct ArtistDetailView: View {
 
             if !artist.relatedArtists.isEmpty {
                 relatedArtistsSection(artists: artist.relatedArtists)
-            }
-
-            if let description = artist.descriptionText, !description.isEmpty {
-                aboutSection(description: description)
             }
 
             if artist.songs.isEmpty && artist.albums.isEmpty && artist.singles.isEmpty
@@ -558,10 +563,7 @@ struct ArtistDetailView: View {
                 .fontWeight(.bold)
                 .padding(.horizontal, 16)
 
-            Text(description)
-                .font(.body)
-                .foregroundColor(.primary)
-                .lineLimit(5)
+            ExpandableDescriptionText(text: description)
                 .padding(.horizontal, 16)
         }
         .padding(.vertical, 16)

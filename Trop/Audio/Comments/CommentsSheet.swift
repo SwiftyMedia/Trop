@@ -586,10 +586,8 @@ private struct CommentRowView: View {
                 Button("Report comment", systemImage: "flag") { onReport(comment) }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.subheadline)
+            VerticalEllipsis(font: .subheadline.weight(.bold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(90))
                 .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
@@ -639,7 +637,7 @@ private struct CommentRowView: View {
             .padding(.leading, 4)
         case .failed:
             Button("Couldn't load replies. Tap to retry.", action: onToggleReplies)
-                .font(.caption)
+                .font(.caption.weight(.bold))
                 .foregroundStyle(accent)
                 .padding(.top, 8)
         }
@@ -746,10 +744,8 @@ private struct CommentReplyRow: View {
                 Button("Report comment", systemImage: "flag") { onReport(comment) }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.caption)
+            VerticalEllipsis(font: .caption.weight(.bold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(90))
                 .frame(width: 26, height: 26)
                 .contentShape(Rectangle())
         }

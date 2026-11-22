@@ -119,6 +119,7 @@ struct FullPlayerView: View {
                                 showLyrics = false
                             }
                         }
+                        .gesture(lyricsCloseDrag)
                         .accessibilityLabel(showLyrics ? "Close lyrics" : "Collapse player")
 
                     if showLyrics {
@@ -272,15 +273,32 @@ struct FullPlayerView: View {
     private var collapseDrag: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
-                guard value.translation.height > 0,
+                guard !showLyrics,
+                      value.translation.height > 0,
                       value.translation.height > abs(value.translation.width) else { return }
                 collapseOffset = value.translation.height
             }
             .onEnded { value in
                 defer { collapseOffset = 0 }
+                guard !showLyrics else { return }
                 let isVertical = value.translation.height > abs(value.translation.width)
                 if isVertical, value.translation.height > 140 {
                     onCollapse()
+                }
+            }
+    }
+
+    /// The lyric page closes only when the user drags the top grabber/footer.
+    /// Keeping this gesture off `LyricsView` leaves its inner ScrollView free
+    /// to move through previous and following lines.
+    private var lyricsCloseDrag: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onEnded { value in
+                guard showLyrics,
+                      value.translation.height > abs(value.translation.width),
+                      value.translation.height > 100 else { return }
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showLyrics = false
                 }
             }
     }

@@ -45,8 +45,7 @@ struct PlaybackControlsView: View {
 
             if showsMore {
                 Button(action: onMore) {
-                    Text("⋮")
-                        .font(.title3)
+                    VerticalEllipsis(font: .title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .frame(width: 48, height: 48)
                         .background(Circle().fill(Color(.secondarySystemGroupedBackground)))

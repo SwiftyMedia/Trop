@@ -14,14 +14,25 @@ struct MoreButton: View {
 
     var body: some View {
         Button(action: action, label: {
-            Text("⋮")
-                .font(.body.weight(.black))
+            VerticalEllipsis(font: .body.weight(.bold))
                 .foregroundStyle(settings.accentColor)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         })
         .buttonStyle(.plain)
         .accessibilityLabel("More")
+    }
+}
+
+/// Apple’s standard horizontal ellipsis, rotated for a consistent vertical
+/// overflow affordance across rows, players, comments, and detail headers.
+struct VerticalEllipsis: View {
+    var font: Font = .body.weight(.bold)
+
+    var body: some View {
+        Image(systemName: "ellipsis")
+            .font(font)
+            .rotationEffect(.degrees(90))
     }
 }
 

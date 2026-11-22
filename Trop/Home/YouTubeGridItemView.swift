@@ -123,10 +123,11 @@ struct YouTubeListItemView: View {
                     Button {
                         UIPasteboard.general.string = url
                     } label: {
-                        Text("⋮")
-                            .font(.body.weight(.black))
+                        VerticalEllipsis(font: .body.weight(.bold))
                             .foregroundStyle(settings.accentColor)
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("More")
                 }
             }
             .contentShape(Rectangle())

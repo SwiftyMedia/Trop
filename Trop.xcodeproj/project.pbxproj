@@ -535,15 +535,14 @@
 				minimumVersion = 0.3.0;
 			};
 		};
-		14B578F12FF21000006B3990 /* XCRemoteSwiftPackageReference "SwiftyTube" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SwiftyMedia/SwiftyTube.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.0.9;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		14B578F12FF21000006B3990 /* XCLocalSwiftPackageReference "SwiftyTube" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../SwiftyTube;
+		};
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		14B578D82FF1AB43006B3990 /* MPVKit */ = {
@@ -568,7 +567,7 @@
 		};
 		14B578F22FF21001006B3990 /* SwiftyTube */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 14B578F12FF21000006B3990 /* XCRemoteSwiftPackageReference "SwiftyTube" */;
+			package = 14B578F12FF21000006B3990 /* XCLocalSwiftPackageReference "SwiftyTube" */;
 			productName = SwiftyTube;
 		};
 /* End XCSwiftPackageProductDependency section */

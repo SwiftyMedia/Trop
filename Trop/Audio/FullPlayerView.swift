@@ -35,17 +35,27 @@ struct FullPlayerView: View {
     }
 
     private var activeLyricText: String? {
-        let synchronizedLines = currentLyrics.filter {
-            $0.startTime != nil &&
-                !$0.text.trimmingCharacters(in: CharacterSet(charactersIn: "♪*· ")).isEmpty
+        let displayLines = currentLyrics.filter {
+            !$0.text.trimmingCharacters(in: CharacterSet(charactersIn: "♪*· ")).isEmpty
         }
-        guard let firstLine = synchronizedLines.first else { return nil }
+        let synchronizedLines = displayLines.filter { $0.startTime != nil }
+        guard let firstLine = synchronizedLines.first else {
+            return displayLines.first?.text
+        }
 
         let lyricTime = np.currentTime + settings.lyricsOffsetSeconds
         return synchronizedLines.last { line in
             guard let startTime = line.startTime else { return false }
             return startTime <= lyricTime
         }?.text ?? firstLine.text
+    }
+
+    /// True once lyrics (synced or plain) have been fetched for this track.
+    /// Used to offer an entry point even when the provider only returned
+    /// unsynced lyrics and there is no "current line" to preview.
+    private var hasLyricsForCurrentTrack: Bool {
+        guard let videoId = np.videoId else { return false }
+        return LyricsState.shared.availableVideoIds.contains(videoId)
     }
 
     var body: some View {
@@ -151,29 +161,11 @@ struct FullPlayerView: View {
 
                         Group {
                             if let activeLyricText {
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        showLyrics = true
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Text(activeLyricText)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(.white.opacity(0.55))
-                                    }
-                                    .foregroundStyle(.white.opacity(0.82))
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal, horizontalPadding)
-                                .padding(.bottom, 8)
-                                .accessibilityLabel("Current lyric: \(activeLyricText). Open lyrics")
+                                lyricsEntryButton(text: activeLyricText, horizontalPadding: horizontalPadding)
+                                    .accessibilityLabel("Current lyric: \(activeLyricText). Open lyrics")
+                            } else if hasLyricsForCurrentTrack {
+                                lyricsEntryButton(text: "View lyrics", horizontalPadding: horizontalPadding)
+                                    .accessibilityLabel("Open lyrics")
                             } else {
                                 Color.clear
                             }
@@ -230,6 +222,14 @@ struct FullPlayerView: View {
             }
             .task { np.preloadNeighborArtwork() }
             .task(id: np.videoId) { await loadCurrentLyrics() }
+            .onChange(of: LyricsState.shared.refreshToken) { _, _ in
+                Task { await loadCurrentLyrics() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tropLyricsDidUpdate)) { notification in
+                guard let updatedVideoId = notification.object as? String,
+                      updatedVideoId == np.videoId else { return }
+                Task { await loadCurrentLyrics() }
+            }
             .sheet(isPresented: $showSongMenu) {
                 if let song = np.queueSongs.indices.contains(np.queueIndex) ? np.queueSongs[np.queueIndex] : nil {
                     PlayerMenuSheet(song: song, onCollapseRequest: { onCollapse() })
@@ -311,6 +311,31 @@ struct FullPlayerView: View {
         Task { await LyricsService.shared.preload(videoId: id, upcoming: upcoming) }
     }
 
+    private func lyricsEntryButton(text: String, horizontalPadding: CGFloat) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showLyrics = true
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(text)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .foregroundStyle(.white.opacity(0.82))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.bottom, 8)
+    }
+
     private func loadCurrentLyrics() async {
         guard let videoId = np.videoId else {
             currentLyrics = []
@@ -319,7 +344,9 @@ struct FullPlayerView: View {
         currentLyrics = []
         guard let lines = try? await LyricsService.shared.fetchLyrics(videoId: videoId),
               !Task.isCancelled,
-              np.videoId == videoId else { return }
+              np.videoId == videoId else {
+            return
+        }
         currentLyrics = lines
     }
 

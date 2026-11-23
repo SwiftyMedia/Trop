@@ -58,12 +58,52 @@ struct GeniusProvider: LyricsProvider {
             throw LyricsError.notFound
         }
 
-        let combined = containers.joined(separator: "<br>")
+        // Genius puts a "N Contributors / Translations" header inside the same
+        // `data-lyrics-container` div, marked `data-exclude-from-selection`.
+        // Without removing it the header text becomes the first lyric lines.
+        let combined = containers
+            .map(strippingExcludedSelection)
+            .joined(separator: "<br>")
         let text = htmlToText(combined)
         let lines = LyricsText.plainLines(text)
 
         guard !lines.isEmpty else { throw LyricsError.notFound }
         return lines
+    }
+
+    /// Removes every element tagged `data-exclude-from-selection="true"` from a
+    /// lyrics fragment (Genius uses this for the contributors/translation
+    /// header that sits above the real lyrics).
+    private func strippingExcludedSelection(_ html: String) -> String {
+        var output = html
+        let marker = "data-exclude-from-selection=\"true\""
+        while let markerRange = output.range(of: marker) {
+            guard let tagStart = output[..<markerRange.lowerBound].lastIndex(of: "<"),
+                  let tagEnd = output[tagStart...].firstIndex(of: ">") else { break }
+
+            // The excluded node is a `<div>`; walk its balanced children.
+            var pos = output.index(after: tagEnd)
+            var depth = 1
+            var end: String.Index?
+            while pos < output.endIndex {
+                let rest = output[pos...]
+                if rest.hasPrefix("<div") {
+                    depth += 1
+                    if let gt = rest.firstIndex(of: ">") {
+                        pos = output.index(after: gt)
+                    } else { break }
+                } else if rest.hasPrefix("</div>") {
+                    depth -= 1
+                    pos = output.index(pos, offsetBy: 6)
+                    if depth == 0 { end = pos; break }
+                } else {
+                    pos = output.index(after: pos)
+                }
+            }
+            guard let end else { break }
+            output.removeSubrange(tagStart..<end)
+        }
+        return output
     }
 
     // MARK: - URL building

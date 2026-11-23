@@ -21,7 +21,9 @@ final class LyricsSettings {
         if let data = UserDefaults.standard.data(forKey: orderKey),
            let decoded = try? JSONDecoder().decode([String].self, from: data),
            !decoded.isEmpty {
-            providerOrder = decoded + LyricsProviderRegistry.defaultOrder.filter { !decoded.contains($0) }
+            // Drop ids that no longer have a provider (e.g. removed sources).
+            let known = decoded.filter { LyricsProviderRegistry.provider(for: $0) != nil }
+            providerOrder = known + LyricsProviderRegistry.defaultOrder.filter { !known.contains($0) }
         }
     }
 
@@ -36,6 +38,11 @@ final class LyricsSettings {
 enum LyricsProviderRegistry {
     static let all: [LyricsProvider] = [
         LRCLIBProvider(),
+        LRCredProvider(),
+        BetterLyricsProvider(),
+        PaxsenixProvider(),
+        UnisonProvider(),
+        SimpMusicProvider(),
         MusixmatchProvider(),
         NeteaseProvider(),
         KugouProvider(),
@@ -44,6 +51,11 @@ enum LyricsProviderRegistry {
 
     static let defaultOrder: [String] = [
         "lrclib",
+        "lrc.red",
+        "betterlyrics",
+        "paxsenix",
+        "unison",
+        "simpmusic",
         "musixmatch",
         "netease",
         "kugou",
@@ -104,12 +116,6 @@ actor LyricsManager {
         }
     }
 
-    private struct ProviderHit: Sendable {
-        let order: Int
-        let lines: [LyricLine]
-        let providerName: String
-    }
-
     func fetchLyricsReturningProvider(query: LyricsQuery) async throws -> ([LyricLine], providerName: String?) {
         let order = await LyricsSettings.shared.providerOrder
         let disabled = SettingsStore.shared.disabledLyricsProviders
@@ -119,30 +125,63 @@ actor LyricsManager {
         }
         guard !candidates.isEmpty else { throw LyricsError.notFound }
 
-        let results = await withTaskGroup(of: ProviderHit?.self) { group in
-            for (index, provider) in candidates {
-                group.addTask {
-                    do {
-                        let lines = try await Self.withTimeout(seconds: 10) {
-                            try await provider.fetch(query: query)
-                        }
-                        guard !lines.isEmpty else { return nil }
-                        return ProviderHit(order: index, lines: lines, providerName: provider.name)
-                    } catch {
-                        return nil
-                    }
+        // Metrolist uses the configured provider order as a real fallback
+        // chain. Concurrent requests made a slow, weak match win over a
+        // better provider because Trop selected only by array position after
+        // all responses arrived.
+        var unsyncedFallback: (lines: [LyricLine], providerName: String)?
+        for (_, provider) in candidates {
+            do {
+                let lines = try await Self.withTimeout(seconds: 10) {
+                    try await provider.fetch(query: query)
                 }
+                guard !lines.isEmpty else {
+                    logFetchFailure(provider: provider, query: query, received: "empty lyrics result")
+                    continue
+                }
+
+                // Synced lyrics drive auto-scroll, line highlighting and
+                // tap-to-seek. Keep an unsynced result as a last resort, but
+                // keep looking for a provider that can follow playback.
+                guard lines.contains(where: { $0.startTime != nil }) else {
+                    if unsyncedFallback == nil {
+                        unsyncedFallback = (lines, provider.name)
+                    }
+                    continue
+                }
+
+                return (lines, provider.name)
+            } catch {
+                if !(error is CancellationError) {
+                    logFetchFailure(provider: provider, query: query, received: error.localizedDescription)
+                }
+                continue
             }
-            var collected: [ProviderHit] = []
-            for await item in group {
-                if let item { collected.append(item) }
-            }
-            return collected
         }
-        guard let best = results.min(by: { $0.order < $1.order }) else {
-            throw LyricsError.notFound
+
+        if let unsyncedFallback {
+            return (unsyncedFallback.lines, unsyncedFallback.providerName)
         }
-        return (best.lines, best.providerName)
+        throw LyricsError.notFound
+    }
+
+    private func logFetchFailure(provider: LyricsProvider, query: LyricsQuery, received: String) {
+        let songLink: String
+        if let videoId = query.videoId {
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "www.youtube.com"
+            components.path = "/watch"
+            components.queryItems = [URLQueryItem(name: "v", value: videoId)]
+            songLink = components.url?.absoluteString ?? "unavailable"
+        } else {
+            songLink = "unavailable"
+        }
+
+        Log.lyrics.error(
+            "Lyrics fetch failed provider=\(provider.name) song=\"\(query.title)\" "
+                + "artist=\"\(query.artist)\" link=\(songLink) received=\"\(received)\""
+        )
     }
 
     private static func withTimeout<T: Sendable>(seconds: Double, work: @escaping @Sendable () async throws -> T) async throws -> T {

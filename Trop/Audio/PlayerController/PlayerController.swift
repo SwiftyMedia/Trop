@@ -170,8 +170,18 @@ extension PlayerController {
             return
         }
 
-        if let videoId, let title, videoId != NowPlaying.shared.videoId {
-            NowPlaying.shared.update(title: title, artist: artist, videoId: videoId, artists: artists, thumbnailUrl: thumbnailUrl)
+        if let videoId, let title {
+            if videoId == NowPlaying.shared.videoId {
+                NowPlaying.shared.updateResolvedMetadata(
+                    title: title,
+                    artist: artist,
+                    videoId: videoId,
+                    duration: duration,
+                    thumbnailUrl: thumbnailUrl
+                )
+            } else {
+                NowPlaying.shared.update(title: title, artist: artist, videoId: videoId, artists: artists, thumbnailUrl: thumbnailUrl)
+            }
         }
 
         let skipStart = await SponsorBlockIntegration.shared.preloadedStartOffset(for: videoId)

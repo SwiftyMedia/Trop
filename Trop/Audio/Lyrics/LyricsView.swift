@@ -66,6 +66,11 @@ struct LyricsView<ProgressSlider: View>: View {
         .onChange(of: LyricsState.shared.refreshToken) { _, _ in
             Task { await loadLyrics() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tropLyricsDidUpdate)) { notification in
+            guard let updatedVideoId = notification.object as? String,
+                  updatedVideoId == np.videoId else { return }
+            Task { await loadLyrics() }
+        }
         .task { await runDisplayTimer() }
     }
 
@@ -135,16 +140,23 @@ struct LyricsView<ProgressSlider: View>: View {
                             pauseAutoScroll()
                         }
                     }
-                    .onAppear { scrollProxy = proxy }
+                    .onAppear {
+                        scrollProxy = proxy
+                        // `activeIndex` may already be past 0 when the view
+                        // appears (opening lyrics mid-song), so center it once
+                        // the scroll view has laid out.
+                        Task { @MainActor in
+                            await Task.yield()
+                            guard !hasPositionedInitialLyrics else { return }
+                            hasPositionedInitialLyrics = true
+                            scrollToActive()
+                        }
+                    }
                     .onChange(of: activeIndex) { _, newIndex in
                         guard lines.indices.contains(newIndex) else { return }
-                        if isAutoScrollEnabled && !userHasScrolled {
-                            if hasPositionedInitialLyrics {
-                                scrollToActive()
-                            } else {
-                                hasPositionedInitialLyrics = true
-                            }
-                        }
+                        guard isAutoScrollEnabled && !userHasScrolled else { return }
+                        hasPositionedInitialLyrics = true
+                        scrollToActive()
                     }
                 }
             }
@@ -354,6 +366,9 @@ struct LyricsView<ProgressSlider: View>: View {
             let interval: UInt64 = (playing && hasSynced) ? 120_000_000 : 500_000_000
             let t = np.currentTime
             if t != displayTime { displayTime = t }
+            // Keep the highlighted line in sync even if `onChange` for
+            // `np.currentTime` is coalesced by SwiftUI.
+            updateActiveLine()
             try? await Task.sleep(nanoseconds: interval)
         }
     }
@@ -430,14 +445,17 @@ struct LyricsView<ProgressSlider: View>: View {
         guard !Task.isCancelled else { return }
         do {
             let result = try await LyricsService.shared.fetchLyrics(videoId: videoId)
-            guard !result.isEmpty else { return }
+            // A newer load may have started while this one was awaiting.
+            guard !Task.isCancelled, np.videoId == videoId else { return }
+            guard !result.isEmpty else {
+                return
+            }
             let withoutMarkers = result.filter { !Self.isInstrumentalMarker($0) }
             lines = withoutMarkers.isEmpty ? result : withoutMarkers
             instrumentalGaps = detectGaps(in: result)
             updateActiveLine()
             await rebuildRomanization()
-        } catch {
-        }
+        } catch {}
     }
 
     private func updateActiveLine() {

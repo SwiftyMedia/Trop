@@ -541,7 +541,8 @@ struct SearchLyricsSheet: View {
                 title: queryTitle,
                 artist: queryArtist,
                 album: nil,
-                duration: duration
+                duration: duration,
+                videoId: nil
             )
             results = await LyricsManager.shared.searchAll(query: query)
             isSearching = false

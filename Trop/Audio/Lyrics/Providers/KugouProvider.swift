@@ -17,7 +17,7 @@ struct KugouProvider: LyricsProvider {
 
     func fetch(query: LyricsQuery) async throws -> [LyricLine] {
         let keyword = generateKeyword(title: query.title, artist: query.artist, album: query.album)
-        let duration = query.durationSeconds
+        let duration = query.durationSeconds ?? 0
 
         guard let candidate = try await getLyricsCandidate(keyword: keyword, duration: duration) else {
             throw LyricsError.notFound
@@ -34,13 +34,15 @@ struct KugouProvider: LyricsProvider {
     private func getLyricsCandidate(keyword: Keyword, duration: Int) async throws -> SearchLyricsResponse.Candidate? {
         // Try matching by song hash first
         let songs = try await searchSongs(keyword: keyword)
-        for song in songs where duration == -1 || abs(song.duration - duration) <= durationTolerance {
+        for song in songs where duration <= 0 || abs(song.duration - duration) <= durationTolerance {
             if let candidate = try await searchLyricsByHash(hash: song.hash).candidates.first {
                 return candidate
             }
         }
         // Fallback to keyword search
-        return try await searchLyricsByKeyword(keyword: keyword, duration: duration).candidates.first
+        let response = try await searchLyricsByKeyword(keyword: keyword, duration: duration)
+        guard duration <= 0 || !response.candidates.isEmpty else { return nil }
+        return response.candidates.first
     }
 
     // MARK: - Requests
@@ -85,7 +87,7 @@ struct KugouProvider: LyricsProvider {
             URLQueryItem(name: "client", value: "pc"),
             URLQueryItem(name: "keyword", value: buildSearchQuery(keyword))
         ]
-        if duration != -1 {
+        if duration > 0 {
             items.append(URLQueryItem(name: "duration", value: String(duration * 1000)))
         }
         components.queryItems = items

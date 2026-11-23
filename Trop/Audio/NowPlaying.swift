@@ -274,6 +274,28 @@ final class NowPlaying {
         )
     }
 
+    func updateResolvedMetadata(
+        title: String?,
+        artist: String?,
+        videoId: String,
+        duration: TimeInterval?,
+        thumbnailUrl: String? = nil
+    ) {
+        guard self.videoId == videoId else { return }
+        if let title, !title.isEmpty { self.title = title }
+        if let artist, !artist.isEmpty {
+            let cleaned = cleanArtistDisplay(artist)
+            self.artist = cleaned
+            self.artists = cleaned
+                .components(separatedBy: ",")
+                .map { YTArtist(name: $0.trimmingCharacters(in: .whitespacesAndNewlines), id: nil) }
+                .filter { !$0.name.isEmpty }
+        }
+        if let duration, duration > 0 { self.duration = duration }
+        if thumbnailUrl != nil { loadThumbnail(videoId: videoId, thumbnailUrl: thumbnailUrl) }
+        CanvasPrefetch.request(videoId: videoId, title: self.title, artist: displayArtist, album: albumTitle)
+    }
+
     /// Records video availability: the watchable-video verdict comes from
     /// the shared availability check (row type preferred, authoritative
     /// lookup as fallback); this only stores it alongside the type and
@@ -404,6 +426,63 @@ final class NowPlaying {
 
     private var lastLoadedVideoId: String?
 
+    private func preloadNextTrack() {
+        guard hasNext else { return }
+        let nextId = queueSongs[queueIndex + 1].videoId
+        SponsorBlockIntegration.shared.warm(for: nextId)
+        loggedTask(Log.nowPlaying, "Pre-resolve failed") {
+            _ = try await PlaybackManager.shared.resolve(videoId: nextId)
+            Log.nowPlaying.debug("Pre-resolved next track: \(nextId)")
+        }
+    }
+
+    private func startTimer() {
+        stopTimer()
+        // Add to `.common` so progress keeps updating while the user scrolls
+        // or drags the slider (the default mode pauses the timer).
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.timerTick()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    @MainActor
+    private func timerTick() {
+        currentTime = PlayerController.shared.currentTime
+        duration = PlayerController.shared.duration
+        PlayerController.shared.updateNowPlayingProgress()
+        SponsorBlockIntegration.shared.tick()
+        if let videoId, duration >= 600 || musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" {
+            let vid = videoId
+            let pos = currentTime
+            let dur = duration
+            Task {
+                await EpisodePlaybackStore.shared.savePosition(videoId: vid, position: pos, duration: dur)
+            }
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    @MainActor
+    private func updateDominantColors(from uiImage: UIImage?) {
+        guard let uiImage = uiImage else {
+            self.dominantColors = [Color(red: 0.15, green: 0.15, blue: 0.2), Color(red: 0.05, green: 0.05, blue: 0.08)]
+            return
+        }
+        self.dominantColors = uiImage.extractDominantColors()
+    }
+}
+
+// MARK: - Artwork
+
+extension NowPlaying {
     private func loadThumbnail(videoId: String, thumbnailUrl: String? = nil) {
         guard videoId != lastLoadedVideoId else { return }
         lastLoadedVideoId = videoId
@@ -530,59 +609,6 @@ final class NowPlaying {
                 }
             }
         }
-    }
-
-    private func preloadNextTrack() {
-        guard hasNext else { return }
-        let nextId = queueSongs[queueIndex + 1].videoId
-        SponsorBlockIntegration.shared.warm(for: nextId)
-        loggedTask(Log.nowPlaying, "Pre-resolve failed") {
-            _ = try await PlaybackManager.shared.resolve(videoId: nextId)
-            Log.nowPlaying.debug("Pre-resolved next track: \(nextId)")
-        }
-    }
-
-    private func startTimer() {
-        stopTimer()
-        // Add to `.common` so progress keeps updating while the user scrolls
-        // or drags the slider (the default mode pauses the timer).
-        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.timerTick()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-    }
-
-    @MainActor
-    private func timerTick() {
-        currentTime = PlayerController.shared.currentTime
-        duration = PlayerController.shared.duration
-        PlayerController.shared.updateNowPlayingProgress()
-        SponsorBlockIntegration.shared.tick()
-        if let videoId, duration >= 600 || musicVideoType == "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" {
-            let vid = videoId
-            let pos = currentTime
-            let dur = duration
-            Task {
-                await EpisodePlaybackStore.shared.savePosition(videoId: vid, position: pos, duration: dur)
-            }
-        }
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    @MainActor
-    private func updateDominantColors(from uiImage: UIImage?) {
-        guard let uiImage = uiImage else {
-            self.dominantColors = [Color(red: 0.15, green: 0.15, blue: 0.2), Color(red: 0.05, green: 0.05, blue: 0.08)]
-            return
-        }
-        self.dominantColors = uiImage.extractDominantColors()
     }
 }
 

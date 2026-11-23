@@ -179,4 +179,5 @@ enum Log {
     static let settings = AppLogger(logger: Logger(subsystem: subsystem, category: "Settings"), category: "settings")
     static let discord = AppLogger(logger: Logger(subsystem: subsystem, category: "DiscordSvc"), category: "discord")
     static let lastfm = AppLogger(logger: Logger(subsystem: subsystem, category: "LastFM"), category: "lastfm")
+    static let lyrics = AppLogger(logger: Logger(subsystem: subsystem, category: "Lyrics"), category: "lyrics", redact: false)
 }

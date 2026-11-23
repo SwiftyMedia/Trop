@@ -101,6 +101,15 @@ actor PlaybackManager {
 
     private func playNetworkResult(_ result: PlaybackResult, videoId: String) async {
         let queueSong = await queueSong(for: videoId)
+        if let resolvedTitle = result.title,
+           let queueSong,
+           resolvedTitle.caseInsensitiveCompare(queueSong.title) != .orderedSame {
+            Log.player.warning(
+                "Resolved metadata mismatch videoId=\(videoId) "
+                    + "queue=\(queueSong.title) by \(queueSong.artists.map(\.name).joined(separator: ", ")) "
+                    + "resolved=\(resolvedTitle) by \(result.author ?? "")"
+            )
+        }
         await PlayerController.shared.play(
             url: result.streamUrl,
             title: result.title,
@@ -112,6 +121,7 @@ actor PlaybackManager {
             thumbnailUrl: queueSong?.thumbnailUrl
         )
         await publishVideoAvailability(result: result, videoId: videoId, rowType: queueSong?.musicVideoType)
+        await LyricsService.shared.refresh(videoId: videoId)
     }
 
     private func clearInflight(key: String) {

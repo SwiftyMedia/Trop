@@ -7,6 +7,10 @@
 
 import Foundation
 
+extension Notification.Name {
+    static let tropLyricsDidUpdate = Notification.Name("TropLyricsDidUpdate")
+}
+
 struct LyricLine: Identifiable, Equatable, Sendable {
     let id = UUID()
     let text: String
@@ -32,8 +36,14 @@ actor LyricsService {
     static let shared = LyricsService()
 
     private var cache: [String: [LyricLine]] = [:]
+    /// Provider that produced each cached lookup, so the "Lyrics from …"
+    /// label survives cache hits and is not lost after a view reload.
+    private var providerNames: [String: String] = [:]
     private var customs: [String: (lines: [LyricLine], providerName: String)] = [:]
     private var inFlight: [String: Task<FetchResult, Error>] = [:]
+    /// Identifies which task currently owns `inFlight[videoId]`, so a
+    /// cancelled lookup can't remove the replacement started by `refresh`.
+    private var inFlightToken: [String: UUID] = [:]
 
     private init() {}
 
@@ -51,7 +61,11 @@ actor LyricsService {
             return custom.lines
         }
         if let cached = cache[videoId] {
-            await updateAvailability(videoId: videoId, available: !cached.isEmpty)
+            await updateAvailability(
+                videoId: videoId,
+                available: !cached.isEmpty,
+                providerName: providerNames[videoId]
+            )
             return cached
         }
         if let flight = inFlight[videoId] {
@@ -65,19 +79,42 @@ actor LyricsService {
             let (lines, providerName) = try await LyricsManager.shared.fetchLyricsReturningProvider(query: query)
             return FetchResult(lines: lines, providerName: providerName)
         }
+        let token = UUID()
         inFlight[videoId] = flight
+        inFlightToken[videoId] = token
         do {
             let result = try await flight.value
-            inFlight.removeValue(forKey: videoId)
+            if inFlightToken[videoId] == token {
+                inFlight.removeValue(forKey: videoId)
+                inFlightToken.removeValue(forKey: videoId)
+            }
             // Only cache successful lookups — empty results should be retried later
             // since lyrics can be matched/published after playback starts.
             if !result.lines.isEmpty {
                 cache[videoId] = result.lines
+                if let provider = result.providerName {
+                    providerNames[videoId] = provider
+                }
             }
             await updateAvailability(videoId: videoId, available: !result.lines.isEmpty, providerName: result.providerName)
+            // Lyrics may finish after LyricsView's initial task. Notify the
+            // view once for this network result; cached reads do not notify,
+            // so this cannot create a reload loop.
+            if !result.lines.isEmpty {
+                await MainActor.run {
+                    LyricsState.shared.refreshToken += 1
+                    NotificationCenter.default.post(
+                        name: .tropLyricsDidUpdate,
+                        object: videoId
+                    )
+                }
+            }
             return result.lines
         } catch {
-            inFlight.removeValue(forKey: videoId)
+            if inFlightToken[videoId] == token {
+                inFlight.removeValue(forKey: videoId)
+                inFlightToken.removeValue(forKey: videoId)
+            }
             if !(error is CancellationError) {
                 await updateAvailability(videoId: videoId, available: false)
             }
@@ -146,6 +183,7 @@ actor LyricsService {
             return
         }
         cache[videoId] = fetchedLines
+        providerNames[videoId] = fetchedProvider ?? "Manual"
         let raw = LyricsParsing.serializeLines(fetchedLines)
         let provider = fetchedProvider ?? "Manual"
         customs[videoId] = (fetchedLines, provider)
@@ -171,6 +209,18 @@ actor LyricsService {
         for id in upcoming where cache[id] == nil && customEntry(for: id) == nil {
             _ = try? await fetchLyrics(videoId: id)
         }
+    }
+
+    /// Re-runs a lookup after playback resolves authoritative title, artist,
+    /// and duration metadata. A first lookup may have started from stale queue
+    /// metadata before the player response arrived.
+    func refresh(videoId: String) async {
+        inFlight[videoId]?.cancel()
+        inFlight.removeValue(forKey: videoId)
+        inFlightToken.removeValue(forKey: videoId)
+        cache.removeValue(forKey: videoId)
+        providerNames.removeValue(forKey: videoId)
+        _ = try? await fetchLyrics(videoId: videoId)
     }
 
     private func updateAvailability(videoId: String, available: Bool, providerName: String? = nil) async {
@@ -229,7 +279,8 @@ actor LyricsService {
             title: cleaned.title,
             artist: cleaned.artist,
             album: cleaned.album,
-            duration: duration > 0 ? duration : 0
+            duration: duration > 0 ? duration : 0,
+            videoId: videoId
         )
     }
 
@@ -279,12 +330,13 @@ actor LyricsService {
         s = s.replacingOccurrences(of: #"『[^』]*』"#, with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: #"\[[^\]]*\]"#, with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
-        for marker in ["|", "♪", "mv", "lyrics", "歌词", "動態", "动态", "official", "官方"] {
-            if let r = s.range(of: marker, options: .caseInsensitive) {
-                s = String(s[..<r.lowerBound])
-                break
-            }
-        }
+        // Only remove a trailing video/lyrics decorator. Searching for `mv`
+        // anywhere corrupts perfectly valid titles such as “Move”.
+        s = s.replacingOccurrences(
+            of: #"(?i)\s*(?:\||♪|\b(?:official(?:\s+(?:music\s+)?video|audio|lyrics?)?|lyrics?|歌詞|歌词|動態|动态)\b).*$"#,
+            with: "",
+            options: .regularExpression
+        )
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

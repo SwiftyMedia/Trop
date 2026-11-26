@@ -14,7 +14,12 @@ on:
 
 concurrency:
   # PRs each get their own group so they do not cancel one another
-  group: trop-nightly-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+  group: >-
+    trop-nightly-${{
+      github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) ||
+      github.event_name == 'schedule' && 'schedule' ||
+      'main'
+    }}
   cancel-in-progress: true
 
 env:

@@ -7,6 +7,9 @@ on:
   pull_request:
     branches:
       - main
+  schedule:
+    # Keep the Discord SDK cache active before GitHub's seven-day inactivity eviction window
+    - cron: "17 0 */3 * *"
   workflow_dispatch:
 
 concurrency:
@@ -25,6 +28,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       (github.event_name == 'push' &&
        !contains(github.event.head_commit.message, '[skip ci]'))
     permissions:

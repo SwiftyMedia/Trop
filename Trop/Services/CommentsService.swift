@@ -36,6 +36,7 @@ actor CommentsService {
     private let youtubeClient = InnerTubeClient(config: .youtube)
 
     func loadInitial(videoId: String) async throws -> CommentsPage {
+        Log.comments.debug("Loading comments videoId=\(videoId)")
         let token = try await initialCommentsToken(videoId: videoId)
         let page = try await fetchPage(continuation: token)
         if page.items.isEmpty, page.nextPageToken == nil {
@@ -45,15 +46,18 @@ actor CommentsService {
     }
 
     func loadPage(continuation: String) async throws -> CommentsPage {
-        try await fetchPage(continuation: continuation)
+        Log.comments.debug("Loading comments page")
+        return try await fetchPage(continuation: continuation)
     }
 
     func loadReplies(continuation: String) async throws -> CommentRepliesPage {
+        Log.comments.debug("Loading comment replies")
         let json = try await fetchContinuationJSON(continuation)
         return CommentsParser.parseRepliesPage(json)
     }
 
     func performCommentAction(action: String) async throws -> Bool {
+        Log.comments.debug("Performing comment action")
         do {
             await syncAuth(into: musicClient)
             let json = try await musicClient.performCommentAction(action: action, client: .web)
@@ -64,6 +68,7 @@ actor CommentsService {
                 let json = try await youtubeClient.performCommentAction(action: action, client: .web)
                 return Self.voteSucceeded(json)
             } catch {
+                Log.comments.warning("Comment action failed on both hosts")
                 throw CommentsError.underlying(error)
             }
         }
@@ -187,6 +192,7 @@ actor CommentsService {
             let json = try await client.next(videoId: videoId, client: .web)
             return CommentsParser.findInitialCommentsToken(in: json)
         } catch {
+            Log.comments.debug("Comments token lookup failed")
             return nil
         }
     }
